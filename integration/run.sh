@@ -116,6 +116,8 @@ assert_strict sample.tf              user.terraform
 assert_strict sample.tfvars          user.terraform
 assert_strict sample.graphql         user.graphql
 assert_strict sample.gql             user.graphql
+assert_strict sample.err             user.err
+assert_strict sample.out             user.out
 assert_strict sample.yml             public.yaml
 assert_strict extensionless          public.unix-executable
 
