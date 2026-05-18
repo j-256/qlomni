@@ -55,6 +55,26 @@ This isn't documented anywhere we could find; it's just observed behavior. QLSte
 
 **Implication:** there is no broad-net preview fallback. To preview an unknown extension, the extension must be declared somewhere — either exporting a `user.*` UTI or importing a canonical one. There is no "register once, catch everything" option.
 
+## The system display bundle trap
+
+Sibling to the wildcard-UTI trap, and just as undocumented: **third-party Preview Extensions cannot override UTIs that have a system display bundle.**
+
+Discovered while trying to handle `public.mpeg-2-transport-stream` (which CoreTypes assigns to all `.ts` files, including TypeScript source). Adding it to our `QLSupportedContentTypes` had no effect – our `.appex` was never consulted. The QL log showed:
+
+```
+got displayBundleID com.apple.qldisplay.Movie for <private>
+...
+Falling back on Generic preview for: <private>
+```
+
+QuickLook resolves the UTI through an internal **display-bundle table** (UTI → `com.apple.qldisplay.*`) that is consulted *before* PluginKit. If a system display bundle claims the UTI, QL routes there directly; if that handler bails, QL falls back to the generic placeholder, never asking PluginKit-registered `.appex` extensions.
+
+Display bundles live in SIP-protected system frameworks and can't be displaced by third parties.
+
+UTIs known to have system display bundles include `public.movie` and everything conforming to it (so `public.mpeg-2-transport-stream`, `public.mpeg`, `public.mpeg-4`, `public.avi`, `public.quicktime-movie`, etc.), `public.image`, `public.audio`, `public.pdf`, `public.html`, `com.apple.iwork.*`, and presumably others. We have not enumerated the full list.
+
+**Implication for QLOmni:** any extension that gets tagged with a UTI claimed by a system display bundle is unrecoverable from a third-party `.appex`. `.ts` is the case we hit (CoreTypes maps `.ts → public.mpeg-2-transport-stream`, which routes to the Movie display bundle). Files with these extensions on macOS as of writing won't preview as text no matter what we declare.
+
 ## Sandbox limits on Preview Extensions
 
 Modern Preview Extensions run inside a sandboxed XPC service. We verified the following empirically:
@@ -63,7 +83,7 @@ Modern Preview Extensions run inside a sandboxed XPC service. We verified the fo
 - `Process()` shelling out to `/usr/bin/file` (or anything else) is silently blocked. The subprocess never runs.
 - Reading the file in chunks via `FileHandle(forReadingFrom:)` works.
 
-Originally we planned to mirror QLStephen's `file --mime` content sniff for binary detection. We can't. In-process byte sniffing is the alternative — but in QLOmni's current scope the question is moot (we only claim text-shaped UTIs, so binary detection isn't needed).
+Originally we planned to mirror QLStephen's `file --mime` content sniff for binary detection. We can't shell out, but in-process byte sniffing works (we read the prefix via `FileHandle` and look for a NUL – the same heuristic `git diff` uses). `PreviewRenderer` does this and throws on binary content, which makes QuickLook fall through to the no-preview placeholder rather than rendering garbage. The text-shaped UTIs we claim normally won't be binary, but `public.unix-executable` covers Mach-O binaries too, and pressing space on one of those should fail gracefully rather than dumping bytes.
 
 ## QLPreviewReply quirks
 
@@ -96,6 +116,31 @@ Both keys live under the host app's `Info.plist`:
 QLOmni uses **exported** for `user.*` UTIs (we are the authoritative declarer of `user.jsonc`, etc., until someone else publishes a more authoritative one).
 
 QLOmni uses **imported** for canonical UTIs (`public.toml`, `com.microsoft.typescript`, `public.protobuf-source`, `net.daringfireball.markdown`). We define them as a courtesy for users who don't have Xcode/Edge/etc. installed. If those apps are installed, their declarations take precedence.
+
+## Extension collisions across declarers
+
+Distinct from the import/export decision above, there's a third axis: two declarers can claim the *same extension* with *different UTIs*. This isn't a backup relationship – neither is the canonical declarer of the other's UTI. They each just happen to use the extension.
+
+Examples QLOmni encounters:
+
+- `.gs` – QLOmni: `user.gs` (Google Apps Script). Xcode: `org.khronos.glsl.geometry-shader` (OpenGL geometry shader).
+- `.ts` – QLOmni imports `com.microsoft.typescript` (TypeScript). `CoreTypes` (bundled in macOS) exports `public.mpeg-2-transport-stream` (MPEG-2 video container).
+
+Launch Services breaks ties using flags on each registration. Roughly: `apple-internal trusted` > `exported trusted` > `imported trusted` > `untrusted`. Apple's own bundles (`CoreTypes`, `Xcode`) are flagged `apple-internal`, so any claim they make wins regardless of whether it's exported or imported. A third-party `exported trusted` declaration (ours) cannot win against `apple-internal`.
+
+Practical implications for QLOmni:
+
+- **Macs without Xcode** (our primary audience): no competing claim. `.gs` resolves to `user.gs`, `.tsx` resolves to our `com.microsoft.typescript` import (and previews because `public.script` ultimately conforms to `public.plain-text` via `public.text-script`).
+- **Macs with Xcode**: `.gs` resolves to `org.khronos.glsl.geometry-shader`, which doesn't conform to `public.plain-text`, so no text preview. `.tsx` resolves to Xcode's `com.microsoft.typescript` (same conformance as ours), still previews.
+- **`.ts` on any modern macOS**: `CoreTypes` always wins with `public.mpeg-2-transport-stream`. Even worse, that UTI has a system display bundle (see [the system display bundle trap](#the-system-display-bundle-trap)), so we can't even handle it via `.appex`. Our `com.microsoft.typescript` import is moot in practice; kept only because removing it costs nothing and Apple could conceivably remove the MPEG-2 claim in a future macOS release.
+
+To investigate a contested extension on a given machine:
+
+```sh
+lsregister -dump | awk '/^----/{block=""; next} {block=block"\n"$0} /^tags:.*\.gs[,$]/{print block; print "==="}'
+```
+
+The integration harness (`integration/run.sh`) categorizes contested extensions as `assert_lenient`: it accepts any non-`dyn.*` UTI and reports the winner instead of failing when we lose.
 
 ## Why .appex claims and host plist declarations are both needed
 
@@ -145,6 +190,24 @@ Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15
 
 - Built on the Preview Extension (`.appex`) API that current macOS still loads, replacing the dead `.qlgenerator` bundle format.
 - Bundles UTI declarations for common modern file types (`.jsonc`, `.code-workspace`, `.env`, `.editorconfig`, `.tf`, `.graphql`, etc.), so those files get a real plain-text-conforming UTI and route through the system text generator unchanged. QLStephen's approach (claim broadly, sniff with `file --mime`) couldn't address this category at all, since the wildcard-UTI trap blocks broad claims and modern Preview Extensions can't shell out to `/usr/bin/file` from inside the sandbox.
+
+## Extensionless non-executable files
+
+Files with no extension and no `+x` bit (e.g. a notes file named `shopping-list`) get tagged `public.data` directly – not even a synthetic `dyn.*`. Launch Services has nothing to fingerprint: no extension, no MIME-type hint, no executable bit. `public.data` is the most generic UTI in the system, and `kMDItemContentTypeTree` for these files is just `[public.data, public.item]`.
+
+We can't preview them. Three reasons in order:
+
+1. **Wildcard-UTI trap** (see above): claiming `public.data` from a Preview Extension is silently ignored by QuickLook's routing filter. The `is-wildcard` flag on `public.data` makes `.appex` claims a no-op.
+2. **No usable conformance ancestor.** `public.data`'s only parent is `public.item`, also a wildcard. There is no non-wildcard UTI between "every file" and "specific format" that we could claim instead.
+3. **No way for a third party to override the UTI assignment itself.** Launch Services' tagging logic for extensionless files is in the framework, not pluggable.
+
+Workarounds for users:
+
+- `chmod +x file` – flips the UTI to `public.unix-executable`, which our `.appex` handles. Side-effect-free for files you don't intend to run, since you'd never invoke them anyway.
+- Symlink with a real extension: `ln -s file file.txt`, preview the symlink.
+- Add a real extension to the file itself.
+
+This is the same wall QLStephen ran into, which is why QLStephen relied on `file --mime` content-sniffing inside its `.qlgenerator`. That approach is dead on modern macOS for two reasons (the `.qlgenerator` graveyard above, and the Preview Extension sandbox forbidding `Process()` shell-outs), and **even if we could shell out, the dispatch wouldn't reach us in the first place** because of the wildcard-UTI trap. The categorization problem is upstream of the rendering problem.
 
 ## Multi-extension files (e.g. `.env.integration.stg`)
 
