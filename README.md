@@ -84,6 +84,14 @@ Should print:
 
 The leading `+` means it's enabled. Then test against any of the formats listed above.
 
+If you've built and installed QLOmni multiple times, Launch Services may accumulate stale registrations pointing at old build paths (DerivedData, prior `/Applications/QLOmni.app` versions, etc.). Symptoms: `pluginkit -m -p com.apple.quicklook.preview | grep qlomni` prints multiple entries, or QuickLook routes to a phantom build. To clean them up:
+
+```sh
+make purge-ls
+```
+
+This unregisters every QLOmni-related path Launch Services knows about *except* `/Applications/QLOmni.app`, then re-registers the live install.
+
 ## Tests
 
 ```sh
