@@ -12,10 +12,7 @@ class PreviewProvider: QLPreviewProvider, QLPreviewingController {
             contentSize: .zero
         ) { (replyToUpdate: QLPreviewReply) -> Data in
             replyToUpdate.stringEncoding = .utf8
-            let data = try Data(contentsOf: url)
-            let limit = 1024 * 1024  // 1 MiB cap
-            let displayData = data.count > limit ? data.prefix(limit) : data
-            return Data(displayData)
+            return try PreviewRenderer.render(fileAt: url)
         }
 
         return reply
