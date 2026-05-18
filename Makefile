@@ -5,7 +5,7 @@ BUILD_DIR   := build
 APP_NAME    := QLOmni.app
 INSTALL_DIR := /Applications
 
-.PHONY: all build install clean reinstall verify
+.PHONY: all build install clean reinstall verify test test-integration
 
 all: build
 
@@ -28,6 +28,14 @@ install: build
 	@echo "Installed $(APP_NAME) to $(INSTALL_DIR)"
 
 reinstall: clean install
+
+test:
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug \
+		-derivedDataPath $(BUILD_DIR) \
+		test
+
+test-integration:
+	./integration/run.sh
 
 verify:
 	@echo "=== pluginkit registration ==="

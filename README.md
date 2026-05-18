@@ -63,6 +63,21 @@ Should print:
 
 The leading `+` means it's enabled. Then test against any of the formats listed above.
 
+## Tests
+
+```sh
+make test              # Swift unit tests (PreviewRenderer truncation/IO)
+make install           # required before integration tests
+make test-integration  # asserts mdls returns the expected UTI for each declared extension
+```
+
+`make test` is hermetic – it builds and runs without touching `/Applications`. `make test-integration` requires QLOmni to be installed (it asks PluginKit and Launch Services about the live system) and asks `mdls` what UTI each fixture in `integration/fixtures/` resolves to. Two assertion modes:
+
+- **Strict** – extensions where no other declarer is expected to compete. The fixture must resolve exactly to the UTI QLOmni declared.
+- **Lenient** – extensions where another bundle may legitimately also claim them (e.g. `.ts` vs CoreTypes' MPEG-2, `.gs` vs Xcode's GLSL shader). Any non-`dyn.*` UTI passes; the harness reports who won.
+
+It does not assert rendering correctness – that requires `qlmanage -p <fixture>` and a human eye. In particular, "Lenient passed" doesn't mean the file *previews* on this machine, only that some real UTI got assigned.
+
 ## Limitations
 
 - Plain text rendering only — no syntax highlighting, no pretty-printing.
