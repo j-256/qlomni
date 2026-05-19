@@ -77,7 +77,7 @@ pluginkit -m -p com.apple.quicklook.preview | grep qlomni
 Should print:
 
 ```
-+    dev.j-256.qlomni.QLOmniExtension(1.0)
++    dev.j-256.qlomni.QLOmniExtension(1.0.0)
 ```
 
 The leading `+` means it's enabled. Then test against any of the formats listed above.
@@ -123,6 +123,10 @@ Two helpers under `tools/` for poking at how the system resolves a given extensi
 - Multi-extension files (e.g. `.env.production.local`) aren't routable on macOS at all; this is a platform limitation, not a QLOmni one.
 - Extensionless non-executable files (e.g. a notes file named `shopping-list` with no extension and no `+x` bit) can't be previewed. macOS tags them as `public.data`, which is a wildcard UTI that QuickLook refuses to route to third-party Preview Extensions. Workaround: `chmod +x` the file (it'll route through our `public.unix-executable` handler), or symlink it with a real extension. See [DESIGN.md § extensionless non-executable files](DESIGN.md#extensionless-non-executable-files).
 - `.ts` caveat above is also a limitation, not a bug.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run tests, cut a release, and use the CI workflow's manual modes (test / dry-run / release).
 
 ## License
 
