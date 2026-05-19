@@ -55,7 +55,7 @@ make install
 
 This builds a universal binary (arm64 + x86_64), ad-hoc signs it, copies `QLOmni.app` to `/Applications/`, registers the Preview Extension with PluginKit, and resets QuickLook so the changes take effect immediately.
 
-Pre-built binaries are not currently provided.
+Pre-built binaries are on the [Releases page](https://github.com/j-256/qlomni/releases) – ad-hoc signed (not notarized), so on first launch Gatekeeper will block the app. Either right-click → Open the first time, or run `xattr -dr com.apple.quarantine /Applications/QLOmni.app`.
 
 ## Uninstall
 
@@ -98,7 +98,7 @@ make install           # required before integration tests
 make test-integration  # asserts mdls returns the expected UTI for each declared extension
 ```
 
-`make test` is hermetic – it builds and runs without touching `/Applications`. `make test-integration` requires QLOmni to be installed (it asks PluginKit and Launch Services about the live system) and asks `mdls` what UTI each fixture in `integration/fixtures/` resolves to. Two assertion modes:
+`make test` is hermetic – it builds and runs without touching `/Applications`, and runs in CI on every push to `main` and every pull request. `make test-integration` requires QLOmni to be installed (it asks PluginKit and Launch Services about the live system) and asks `mdls` what UTI each fixture in `integration/fixtures/` resolves to. It does not run in CI – `mdls` and PluginKit aren't reliable on headless runners. Two assertion modes:
 
 - **Strict** – extensions where no other declarer is expected to compete. The fixture must resolve exactly to the UTI QLOmni declared.
 - **Lenient** – extensions where another bundle may legitimately also claim them (e.g. `.ts` vs CoreTypes' MPEG-2, `.gs` vs Xcode's GLSL shader). Any non-`dyn.*` UTI passes; the harness reports who won.

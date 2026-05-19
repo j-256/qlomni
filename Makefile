@@ -10,11 +10,15 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 
 all: build
 
+# VERSION (optional): when set, overrides MARKETING_VERSION at build time so the
+# bundle's CFBundleShortVersionString matches the release tag without needing a
+# pbxproj edit. CI sets this from the tag; locally it's empty and pbxproj wins.
 build:
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) \
 		-derivedDataPath $(BUILD_DIR) \
 		ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
 		CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
+		$(if $(VERSION),MARKETING_VERSION=$(VERSION)) \
 		build
 
 install: build

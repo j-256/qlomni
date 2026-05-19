@@ -1,0 +1,188 @@
+name: CI
+
+# Triggers:
+#   - push to main      -> test only
+#   - pull_request      -> test only
+#   - push tag v*       -> test + package + release
+#   - workflow_dispatch -> mode picks: test | dry-run | release
+#                          release requires the dispatch ref to be a v* tag.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'test (unit tests only) | dry-run (build + package, no release) | release (full pipeline; requires v* tag ref)'
+        type: choice
+        options: [test, dry-run, release]
+        default: test
+
+permissions:
+  contents: write
+
+jobs:
+  # Resolve which jobs should run, and what version string to stamp into the
+  # build. Single source of truth so downstream jobs don't re-derive it.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run_test:    ${{ steps.plan.outputs.run_test }}
+      run_package: ${{ steps.plan.outputs.run_package }}
+      run_release: ${{ steps.plan.outputs.run_release }}
+      version:     ${{ steps.plan.outputs.version }}
+    steps:
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF:   ${{ github.ref }}
+          MODE:  ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+
+          run_test=false; run_package=false; run_release=false
+          version=""
+
+          is_tag=false
+          case "$REF" in refs/tags/v*) is_tag=true ;; esac
+
+          case "$EVENT" in
+            push)
+              if $is_tag; then
+                run_test=true; run_package=true; run_release=true
+                version="${REF#refs/tags/v}"
+              else
+                run_test=true
+              fi
+              ;;
+            pull_request)
+              run_test=true
+              ;;
+            workflow_dispatch)
+              case "$MODE" in
+                test)
+                  run_test=true
+                  ;;
+                dry-run)
+                  run_test=true; run_package=true
+                  if $is_tag; then
+                    version="${REF#refs/tags/v}"
+                  else
+                    version="0.0.0-dryrun-${GITHUB_SHA::7}"
+                  fi
+                  ;;
+                release)
+                  if ! $is_tag; then
+                    echo "::error::release mode requires a v* tag ref; got '$REF'. Tag the commit first, then dispatch with that tag selected."
+                    exit 1
+                  fi
+                  run_test=true; run_package=true; run_release=true
+                  version="${REF#refs/tags/v}"
+                  ;;
+                *)
+                  echo "::error::unknown mode '$MODE'"; exit 1 ;;
+              esac
+              ;;
+          esac
+
+          {
+            echo "run_test=$run_test"
+            echo "run_package=$run_package"
+            echo "run_release=$run_release"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "plan: test=$run_test package=$run_package release=$run_release version='$version'"
+
+  test:
+    needs: plan
+    if: needs.plan.outputs.run_test == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Run unit tests
+        run: make test
+
+  package:
+    needs: [plan, test]
+    if: needs.plan.outputs.run_package == 'true'
+    runs-on: macos-latest
+    outputs:
+      zip_name: ${{ steps.package.outputs.zip_name }}
+      sha256:   ${{ steps.package.outputs.sha256 }}
+      version:  ${{ steps.package.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: make build VERSION="$VERSION"
+
+      - name: Package
+        id: package
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          zip_name="QLOmni-${VERSION}.zip"
+          # ditto preserves bundle metadata + xattrs in a way `zip` does not.
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Build/Products/Release/QLOmni.app \
+            "${zip_name}"
+          sha256="$(shasum -a 256 "${zip_name}" | awk '{print $1}')"
+          {
+            echo "zip_name=${zip_name}"
+            echo "sha256=${sha256}"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlomni-zip
+          path: ${{ steps.package.outputs.zip_name }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: [plan, package]
+    if: needs.plan.outputs.run_release == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qlomni-zip
+
+      # Idempotent on retag: if the release already exists (e.g. from a
+      # prior run on the same tag), overwrite its asset instead of failing.
+      - name: Create or update Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ZIP_NAME: ${{ needs.package.outputs.zip_name }}
+          SHA256:   ${{ needs.package.outputs.sha256 }}
+          VERSION:  ${{ needs.package.outputs.version }}
+          TAG:      ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          notes="QLOmni ${VERSION} -- ad-hoc signed (not notarized).
+
+          On first launch, macOS Gatekeeper will block the app. Either:
+          - Right-click → Open the first time, or
+          - Run \`xattr -dr com.apple.quarantine /Applications/QLOmni.app\`
+
+          SHA-256: \`${SHA256}\`"
+          gh release create "$TAG" "$ZIP_NAME" \
+            --title "$TAG" \
+            --generate-notes \
+            --notes "$notes" \
+          || gh release upload "$TAG" "$ZIP_NAME" --clobber
