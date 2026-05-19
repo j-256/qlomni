@@ -119,7 +119,35 @@ assert_strict sample.gql             user.graphql
 assert_strict sample.err             user.err
 assert_strict sample.out             user.out
 assert_strict sample.yml             public.yaml
+assert_strict sample.yaml            public.yaml
 assert_strict extensionless          public.unix-executable
+assert_strict sample.rs              user.rust
+assert_strict sample.go              user.go-source
+assert_strict sample.kt              user.kotlin
+assert_strict sample.kts             user.kotlin
+assert_strict sample.cs              user.csharp
+assert_strict sample.scala           user.scala
+assert_strict sample.dart            user.dart
+assert_strict sample.vue             user.vue
+assert_strict sample.svelte          user.svelte
+assert_strict sample.sass            user.sass
+assert_strict sample.scss            user.sass
+assert_strict sample.less            user.less
+assert_strict sample.hcl             user.hcl
+assert_strict sample.clj             user.clojure
+assert_strict sample.cljs            user.clojure
+assert_strict sample.cljc            user.clojure
+assert_strict sample.hs              user.haskell
+assert_strict sample.ps1             user.powershell
+assert_strict sample.psm1            user.powershell
+assert_strict sample.ex              user.elixir
+assert_strict sample.coffee          user.coffeescript
+assert_strict sample.groovy          user.groovy
+assert_strict sample.fish            user.fish
+assert_strict sample.feature         user.gherkin
+assert_strict sample.hbs             user.handlebars
+assert_strict sample.handlebars      user.handlebars
+assert_strict sample.cjs             user.cjs
 
 # Lenient: extensions where another app may reasonably also claim them. We
 # accept losing to a real (non-dyn.*) UTI -- the design is that we act as a
@@ -132,6 +160,8 @@ assert_lenient sample.ts             com.microsoft.typescript      # vs CoreType
 assert_lenient sample.tsx            com.microsoft.typescript      # vs Xcode
 assert_lenient sample.proto          public.protobuf-source        # vs Xcode
 assert_lenient sample.md             net.daringfireball.markdown   # vs Xcode / markdown editors
+assert_lenient sample.markdown       net.daringfireball.markdown   # vs Xcode / markdown editors
+assert_lenient sample.ini            com.microsoft.ini             # vs Xcode (declares com.microsoft.ini itself)
 
 echo
 echo "$pass passed, $fail failed"

@@ -1,0 +1,3 @@
+resource "example" {
+  name = "demo"
+}
