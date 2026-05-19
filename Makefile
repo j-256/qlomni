@@ -28,10 +28,17 @@ build:
 		$(if $(VERSION),MARKETING_VERSION=$(VERSION)) \
 		build
 
+# Xcode's RegisterWithLaunchServices build phase registers the build-output
+# path with LS during `make build`. Without an unregister, that registration
+# outlives the cp into $(INSTALL_DIR) and LS ends up knowing about both the
+# build path and the live install -- which one wins for QuickLook dispatch
+# is not guaranteed across rebuilds. Unregister the build path right after
+# copying so LS only knows about $(INSTALL_DIR)/$(APP_NAME).
 install: build
 	rm -rf $(INSTALL_DIR)/$(APP_NAME)
 	cp -R $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) $(INSTALL_DIR)/
 	xattr -dr com.apple.quarantine $(INSTALL_DIR)/$(APP_NAME) 2>/dev/null || true
+	$(LSREGISTER) -u $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) 2>/dev/null || true
 	$(LSREGISTER) -f $(INSTALL_DIR)/$(APP_NAME)
 	pluginkit -e use -i dev.j-256.qlomni.QLOmniExtension || true
 	qlmanage -r
