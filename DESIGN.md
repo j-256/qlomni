@@ -131,7 +131,7 @@ Launch Services breaks ties using flags on each registration. Roughly: `apple-in
 Practical implications for QLOmni:
 
 - **Macs without Xcode** (our primary audience): no competing claim. `.gs` resolves to `user.gs`, `.tsx` resolves to our `com.microsoft.typescript` import (and previews because `public.script` ultimately conforms to `public.plain-text` via `public.text-script`).
-- **Macs with Xcode**: `.gs` resolves to `org.khronos.glsl.geometry-shader`, which doesn't conform to `public.plain-text`, so no text preview. `.tsx` resolves to Xcode's `com.microsoft.typescript` (same conformance as ours), still previews.
+- **Macs with Xcode**: `.gs` resolves to `org.khronos.glsl.geometry-shader`. The conformance chain `glsl.geometry-shader → glsl-source → public.source-code → public.plain-text` does reach plain text (Xcode declares the GLSL UTIs `apple-internal trusted`, and `public.source-code` is a CoreTypes-declared text type), so `.gs` previews as text via the system text generator either way – just with the wrong "kind" label ("OpenGL Geometry Source" instead of "Google Apps Script"). `.tsx` resolves to Xcode's `com.microsoft.typescript` (same conformance as ours), still previews.
 - **`.ts` on any modern macOS**: `CoreTypes` always wins with `public.mpeg-2-transport-stream`. Even worse, that UTI has a system display bundle (see [the system display bundle trap](#the-system-display-bundle-trap)), so we can't even handle it via `.appex`. Our `com.microsoft.typescript` import is moot in practice; kept only because removing it costs nothing and Apple could conceivably remove the MPEG-2 claim in a future macOS release.
 
 To investigate a contested extension on a given machine:

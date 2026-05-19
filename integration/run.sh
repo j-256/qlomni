@@ -153,7 +153,7 @@ assert_strict sample.cjs             user.cjs
 # accept losing to a real (non-dyn.*) UTI -- the design is that we act as a
 # backup for users who don't have the competing app installed. Each line
 # notes who we expect might compete.
-assert_lenient sample.gs             user.gs                       # vs OpenGL geometry shader (Xcode)
+assert_lenient sample.gs             user.gs                       # vs Xcode's org.khronos.glsl.geometry-shader (also conforms to public.plain-text, so previews either way)
 assert_lenient sample.sql            org.iso.sql                   # vs SQL editors / IDEs
 assert_lenient sample.toml           public.toml                   # vs Xcode (declares public.toml itself)
 assert_lenient sample.ts             com.microsoft.typescript      # vs CoreTypes (mpeg-2-transport-stream)

@@ -10,11 +10,9 @@ Press space on a `.txt` file and macOS shows you the contents. Press space on a 
 - **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), and **INI** (`.ini`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
 - **Files with extensions macOS doesn't recognize** – `.jsonc`, `.code-workspace`, `.env`, `.editorconfig`, `.tf`, `.tfvars`, `.graphql`, `.gql`, `.jsx`, `.properties`, `.tsx`, `.proto`, `.sql`, `.md`, `.markdown`, `.err`, `.out`, Google Apps Script (`.gs`), and a long list of programming languages and config formats: `.rs` (Rust), `.go`, `.kt`/`.kts` (Kotlin), `.cs` (C#), `.scala`, `.dart`, `.vue`, `.svelte`, `.sass`/`.scss`, `.less`, `.hcl`, `.clj`/`.cljs`/`.cljc` (Clojure), `.hs` (Haskell), `.ps1`/`.psm1` (PowerShell), `.ex` (Elixir), `.coffee`, `.groovy`, `.fish`, `.feature` (Gherkin), `.hbs`/`.handlebars`, and `.cjs`. Some of these (e.g. `.tsx`, `.proto`, `.md`) get UTI declarations from Xcode.app if installed; QLOmni provides the same declarations as a fallback for Macs without it, so preview works either way.
 
-QLOmni handles all of these – with two notable exceptions.
+QLOmni handles all of these – with one notable exception.
 
 **Doesn't fix `.ts`.** TypeScript files have a hard problem: macOS itself (CoreTypes, the bundled type registry) tags every `.ts` file as `public.mpeg-2-transport-stream` (an MPEG-2 video container – `.ts` predates TypeScript as a video extension). QuickLook routes that UTI to the bundled Movie display bundle, which sits ahead of any third-party Preview Extension and cannot be displaced. `.ts` files won't preview as text on any modern macOS, with or without QLOmni. `.tsx` is unaffected and previews fine. See [DESIGN.md § the system display bundle trap](DESIGN.md#the-system-display-bundle-trap).
-
-**Doesn't fix `.gs` if Xcode is installed.** Xcode declares `.gs` as an OpenGL geometry shader, which doesn't preview as text. On Macs without Xcode, `.gs` previews as Google Apps Script. See [DESIGN.md § extension collisions across declarers](DESIGN.md#extension-collisions-across-declarers).
 
 ### Already covered by macOS
 
@@ -124,7 +122,7 @@ Two helpers under `tools/` for poking at how the system resolves a given extensi
 - Files larger than 1 MiB are truncated.
 - Multi-extension files (e.g. `.env.production.local`) aren't routable on macOS at all; this is a platform limitation, not a QLOmni one.
 - Extensionless non-executable files (e.g. a notes file named `shopping-list` with no extension and no `+x` bit) can't be previewed. macOS tags them as `public.data`, which is a wildcard UTI that QuickLook refuses to route to third-party Preview Extensions. Workaround: `chmod +x` the file (it'll route through our `public.unix-executable` handler), or symlink it with a real extension. See [DESIGN.md § extensionless non-executable files](DESIGN.md#extensionless-non-executable-files).
-- `.ts` and `.gs`-on-Xcode caveats above are also limitations, not bugs.
+- `.ts` caveat above is also a limitation, not a bug.
 
 ## License
 
