@@ -1,6 +1,6 @@
 # Concepts
 
-Background reasoning behind QLOmni's design — captured here so anyone working on QLOmni (or building something similar) doesn't have to re-derive it.
+Background reasoning behind QLOmni's design – captured here so anyone working on QLOmni (or building something similar) doesn't have to re-derive it.
 
 ## What QuickLook actually does
 
@@ -20,8 +20,8 @@ If the file's extension is not declared by *any* installed bundle, Launch Servic
 
 The system text generator (the one that previews `.txt`, `.md`, `.swift`, etc.) only claims `public.plain-text`. Some text-shaped formats have UTIs that conform to `public.text` *but not* `public.plain-text`:
 
-- `public.yaml` — conforms to `public.text` directly.
-- `public.toml` — same.
+- `public.yaml` – conforms to `public.text` directly.
+- `public.toml` – same.
 
 These files have a real UTI, the file is plain text, but the system text generator declines to handle them, and no other handler claims the more general `public.text`.
 
@@ -29,15 +29,15 @@ These files have a real UTI, the file is plain text, but the system text generat
 
 Many "system" UTIs are actually declared by specific apps:
 
-- `com.microsoft.typescript` (`.ts`, `.tsx`) — typically `Xcode.app`
-- `public.toml` — typically `Xcode.app`
-- `public.protobuf-source` — typically `Xcode.app`
-- `net.daringfireball.markdown` (`.md`) — varies; sometimes `Xcode.app`, often a markdown editor
-- `com.netscape.javascript-source` (`.js`) — typically a browser (Edge, Firefox, etc.)
+- `com.microsoft.typescript` (`.ts`, `.tsx`) – typically `Xcode.app`
+- `public.toml` – typically `Xcode.app`
+- `public.protobuf-source` – typically `Xcode.app`
+- `net.daringfireball.markdown` (`.md`) – varies; sometimes `Xcode.app`, often a markdown editor
+- `com.netscape.javascript-source` (`.js`) – typically a browser (Edge, Firefox, etc.)
 
 The exact set depends on what's installed; verify with `lsregister -dump | grep -B1 -A4 'type id: *<uti> '` to find which bundle owns a given UTI.
 
-On a Mac without those apps, the corresponding extensions fall through to case 1 (synthetic `dyn.*`). This is why declaring `.toml` etc. remains valuable even though "the system already knows about it" — *the system might not.*
+On a Mac without those apps, the corresponding extensions fall through to case 1 (synthetic `dyn.*`). This is why declaring `.toml` etc. remains valuable even though "the system already knows about it" – *the system might not.*
 
 ## How the .appex routes (the wildcard-UTI trap)
 
@@ -53,7 +53,7 @@ What appears to be happening:
 
 This isn't documented anywhere we could find; it's just observed behavior. QLStephen on legacy macOS may have benefited from looser routing in the `.qlgenerator` era.
 
-**Implication:** there is no broad-net preview fallback. To preview an unknown extension, the extension must be declared somewhere — either exporting a `user.*` UTI or importing a canonical one. There is no "register once, catch everything" option.
+**Implication:** there is no broad-net preview fallback. To preview an unknown extension, the extension must be declared somewhere – either exporting a `user.*` UTI or importing a canonical one. There is no "register once, catch everything" option.
 
 ## The system display bundle trap
 
@@ -95,9 +95,9 @@ Originally we planned to mirror QLStephen's `file --mime` content sniff for bina
 
 Three naming domains:
 
-- **`public.*`** — Apple-reserved. Don't claim these as exported.
-- **`com.example.*`** / reverse-DNS — third-party, when you're declaring *your* format.
-- **`user.*`** — for declarations of *public formats* that nobody else has officially declared. Discouraged in Apple's docs but in widespread practice for exactly this case.
+- **`public.*`** – Apple-reserved. Don't claim these as exported.
+- **`com.example.*`** / reverse-DNS – third-party, when you're declaring *your* format.
+- **`user.*`** – for declarations of *public formats* that nobody else has officially declared. Discouraged in Apple's docs but in widespread practice for exactly this case.
 
 For QLOmni's bundled declarations:
 
@@ -110,8 +110,8 @@ Imported declarations defer to any exported declaration of the same UTI. So if X
 
 Both keys live under the host app's `Info.plist`:
 
-- `UTExportedTypeDeclarations` — "we are the authoritative declarer of this UTI." If multiple bundles export the same UTI, last registered wins (or some non-deterministic precedence).
-- `UTImportedTypeDeclarations` — "this UTI exists, here's our fallback declaration. If anyone else exports it, theirs wins."
+- `UTExportedTypeDeclarations` – "we are the authoritative declarer of this UTI." If multiple bundles export the same UTI, last registered wins (or some non-deterministic precedence).
+- `UTImportedTypeDeclarations` – "this UTI exists, here's our fallback declaration. If anyone else exports it, theirs wins."
 
 QLOmni uses **exported** for `user.*` UTIs (we are the authoritative declarer of `user.jsonc`, etc., until someone else publishes a more authoritative one).
 
@@ -146,10 +146,10 @@ The integration harness (`integration/run.sh`) categorizes contested extensions 
 
 Each piece does a different job:
 
-- **Host app's UTI declarations** — make sure the file gets tagged with a real, plain-text-conforming UTI instead of `dyn.*`. This enables the *system text generator* to preview it.
-- **`.appex`'s `QLSupportedContentTypes`** — fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`) and for UTIs that have no system preview handler at all (`public.unix-executable`).
+- **Host app's UTI declarations** – make sure the file gets tagged with a real, plain-text-conforming UTI instead of `dyn.*`. This enables the *system text generator* to preview it.
+- **`.appex`'s `QLSupportedContentTypes`** – fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`) and for UTIs that have no system preview handler at all (`public.unix-executable`).
 
-The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get plain-text-conforming UTIs via the host plist alone — no `.appex` involvement. Only `public.yaml`, `public.toml`, and `public.unix-executable` need the `.appex` to handle preview directly.
+The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get plain-text-conforming UTIs via the host plist alone – no `.appex` involvement. Only `public.yaml`, `public.toml`, and `public.unix-executable` need the `.appex` to handle preview directly.
 
 ## Stale PluginKit and Launch Services entries
 
@@ -186,7 +186,7 @@ Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugi
 - `lsregister -f ~/Library/QuickLook/QLStephen.qlgenerator` returns exit code -10811 ("kLSUnknownErr").
 - `pluginkit -m -p com.apple.quicklook.preview` shows only `.appex` Preview Extensions.
 
-Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions; loading support has since been removed (or restricted to Apple-bundled plugins). QLOmni shares QLStephen's core idea — surface the contents of files macOS itself doesn't preview — but extends it in two ways:
+Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions; loading support has since been removed (or restricted to Apple-bundled plugins). QLOmni shares QLStephen's core idea – surface the contents of files macOS itself doesn't preview – but extends it in two ways:
 
 - Built on the Preview Extension (`.appex`) API that current macOS still loads, replacing the dead `.qlgenerator` bundle format.
 - Bundles UTI declarations for common modern file types (`.jsonc`, `.code-workspace`, `.env`, `.editorconfig`, `.tf`, `.graphql`, etc.), so those files get a real plain-text-conforming UTI and route through the system text generator unchanged. QLStephen's approach (claim broadly, sniff with `file --mime`) couldn't address this category at all, since the wildcard-UTI trap blocks broad claims and modern Preview Extensions can't shell out to `/usr/bin/file` from inside the sandbox.
@@ -211,7 +211,7 @@ This is the same wall QLStephen ran into, which is why QLStephen relied on `file
 
 ## Multi-extension files (e.g. `.env.integration.stg`)
 
-UTI lookup keys on the substring after the *last* dot. There is no glob / regex / multi-extension support in `UTTypeTagSpecification`. A file named `foo.env.integration.stg` has extension `stg`, not `env`, and would need a `user.stg` declaration to be routed — which is wrong (`.stg` isn't generally an env file).
+UTI lookup keys on the substring after the *last* dot. There is no glob / regex / multi-extension support in `UTTypeTagSpecification`. A file named `foo.env.integration.stg` has extension `stg`, not `env`, and would need a `user.stg` declaration to be routed – which is wrong (`.stg` isn't generally an env file).
 
 There's no clean way to handle this on macOS. Workarounds:
 

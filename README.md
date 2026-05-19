@@ -35,10 +35,10 @@ If `kMDItemContentType` is a real UTI (not `dyn.*`) and `kMDItemContentTypeTree`
 
 Two pieces, both shipped in a single bundle:
 
-- A **Preview Extension** (`.appex`) that handles `public.unix-executable`, `public.yaml`, and `public.toml` directly — rendering each as plain text.
+- A **Preview Extension** (`.appex`) that handles `public.unix-executable`, `public.yaml`, and `public.toml` directly – rendering each as plain text.
 - A **set of UTI declarations** for common formats macOS doesn't natively know about. Most extensions get assigned a plain-text-conforming UTI and route through the system text generator unchanged; QLOmni's role is just making sure the file *gets* a sensible UTI.
 
-For the technical details — including why some plausible approaches don't work — see [DESIGN.md](DESIGN.md).
+For the technical details – including why some plausible approaches don't work – see [DESIGN.md](DESIGN.md).
 
 ## Install
 
@@ -64,7 +64,7 @@ rm -rf /Applications/QLOmni.app
 qlmanage -r && qlmanage -r cache
 ```
 
-Note that this removes both the Preview Extension *and* the UTI declarations — files that were resolving to a real UTI (e.g. `user.jsonc`) will revert to a synthetic `dyn.*` type after the next Launch Services scan, and lose preview support along with it.
+Note that this removes both the Preview Extension *and* the UTI declarations – files that were resolving to a real UTI (e.g. `user.jsonc`) will revert to a synthetic `dyn.*` type after the next Launch Services scan, and lose preview support along with it.
 
 ## Verify
 
@@ -126,7 +126,7 @@ Two helpers under `tools/` for poking at how the system resolves a given extensi
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT – see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
