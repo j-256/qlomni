@@ -13,6 +13,7 @@
 				<string>public.unix-executable</string>
 				<string>public.yaml</string>
 				<string>public.toml</string>
+				<string>com.microsoft.ini</string>
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>
