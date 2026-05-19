@@ -107,6 +107,17 @@ make test-integration  # asserts mdls returns the expected UTI for each declared
 
 It does not assert rendering correctness – that requires `qlmanage -p <fixture>` and a human eye. In particular, "Lenient passed" doesn't mean the file *previews* on this machine, only that some real UTI got assigned.
 
+## Investigating UTI dispatch
+
+Two helpers under `tools/` for poking at how the system resolves a given extension or file:
+
+```sh
+./tools/uti.swift rs ini gs              # live LaunchServices lookup per extension
+./tools/mdls-summary.sh some-file.foo    # one-line mdls summary for a path
+```
+
+`uti.swift` queries the live LaunchServices API and is the right tool right after a registration change (`lsregister -u/-f`). `mdls` reads from a Spotlight metadata cache that can stay stale for minutes after registrations change, so prefer `uti.swift` when investigating contested extensions.
+
 ## Limitations
 
 - Plain text rendering only – no syntax highlighting, no pretty-printing.
