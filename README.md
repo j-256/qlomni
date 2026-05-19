@@ -20,7 +20,7 @@ If you came here looking for an extension that isn't in the list above, check wh
 
 - **Logs and diffs**: `.log`, `.diff`, `.patch` all conform to `public.plain-text` and route through the system text generator.
 - **Scripts with conventional extensions**: `.sh`, `.bash`, `.zsh`, `.py`, `.rb`, `.pl`, `.swift`, `.lua`, `.r` – same.
-- **Tabular**: `.csv` and `.tsv` get dedicated handlers (`Office.qlgenerator` and the system text generator respectively).
+- **Tabular**: `.csv` and `.tsv` get dedicated handlers (Apple's bundled `Office.qlgenerator` – the name is unfortunate but it's part of macOS, not Microsoft Office – and the system text generator respectively).
 - **Markdown** (`.md`): only on Macs with a markdown UTI declarer. Xcode counts; QLOmni includes one as a fallback.
 
 To find out whether macOS already covers a given extension on your machine:
