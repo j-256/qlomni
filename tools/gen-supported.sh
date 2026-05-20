@@ -3,7 +3,7 @@
 #
 # SUPPORTED.md is a user-facing reference table of every file extension
 # QLOmni declares, sorted alphabetically. The plists are canonical;
-# SUPPORTED.md is a generated artefact -- hand-edits get clobbered on
+# SUPPORTED.md is a generated artifact -- hand-edits get clobbered on
 # the next regeneration.
 #
 # Usage:
@@ -121,5 +121,31 @@ HEADER
     done < <(known_broken)
 }
 
-generate > "$OUTPUT"
-echo "wrote $OUTPUT"
+case "${1:-}" in
+    --check)
+        if [ ! -f "$OUTPUT" ]; then
+            echo "error: $OUTPUT does not exist; run 'make supported' to generate it." >&2
+            exit 1
+        fi
+        expected="$(mktemp)"
+        trap 'rm -f "$expected"' EXIT
+        generate > "$expected"
+        if ! diff -u "$OUTPUT" "$expected" > /dev/null; then
+            echo "error: SUPPORTED.md is out of date relative to the Info.plists." >&2
+            echo "Run 'make supported' to regenerate it, then commit the change." >&2
+            echo >&2
+            echo "Diff (committed vs. expected):" >&2
+            diff -u "$OUTPUT" "$expected" >&2 || true
+            exit 1
+        fi
+        echo "SUPPORTED.md is up to date."
+        ;;
+    "")
+        generate > "$OUTPUT"
+        echo "wrote $OUTPUT"
+        ;;
+    *)
+        echo "usage: $0 [--check]" >&2
+        exit 2
+        ;;
+esac

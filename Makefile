@@ -13,7 +13,7 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 # Override with INTEGRATION=1 or INTEGRATION=0.
 UTI_SURFACE := QLOmni/QLOmni/Info.plist QLOmniExtension/Info.plist integration/
 
-.PHONY: all build install clean reinstall verify test test-integration purge-ls version print-version release retag
+.PHONY: all build install clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported
 
 all: build
 
@@ -47,7 +47,7 @@ install: build
 
 reinstall: clean install
 
-test:
+test: check-supported
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug \
 		-derivedDataPath $(BUILD_DIR) \
 		test
@@ -280,3 +280,15 @@ retag:
 		exit 1; \
 	fi
 	@echo "Retagged v$(V). Watch CI: https://github.com/j-256/qlomni/actions"
+
+# Regenerate SUPPORTED.md from the Info.plists. Cheap (millisecond-scale);
+# safe to run any time. The plists are canonical; SUPPORTED.md is a generated
+# artifact -- hand-edits get clobbered.
+supported:
+	./tools/gen-supported.sh
+
+# Drift check: fails if SUPPORTED.md is out of date relative to the plists.
+# Wired as a dependency of `make test` so the check runs locally and in CI
+# without a separate workflow step.
+check-supported:
+	./tools/gen-supported.sh --check
