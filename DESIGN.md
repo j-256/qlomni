@@ -220,3 +220,25 @@ There's no clean way to handle this on macOS. Workarounds:
 - Use a tool with its own filename-pattern matching (not QuickLook).
 
 This is a long-standing platform limitation, not specific to QLOmni.
+
+## File-system-synchronized groups vs the new-app template
+
+Xcode 16 added *file-system-synchronized groups* (`PBXFileSystemSynchronizedRootGroup`), which auto-discover folder contents instead of requiring every file to be listed explicitly in `project.pbxproj`. Lower maintenance, less merge conflict surface – good feature.
+
+The new-app project template (which has been Xcode's default for years) generates a nested layout: target `QLOmni/` contains an inner folder `QLOmni/`, with `Info.plist`, `*.swift`, and `Assets.xcassets` inside that. Two different parts of Xcode disagree about what to do with this:
+
+- The **build settings** point at `QLOmni/QLOmni/Info.plist` via `INFOPLIST_FILE`, embedding it into the bundle as `Info.plist`.
+- The **synchronized group** rooted at `QLOmni/` recurses into the nested folder and auto-includes `Info.plist` in the Copy Bundle Resources phase.
+
+Both paths active simultaneously triggers the warning:
+
+```
+warning: The Copy Bundle Resources build phase contains this target's
+Info.plist file '.../QLOmni/QLOmni/Info.plist'.
+```
+
+Apple was aware of the conflict – they added the `membershipExceptions` mechanism specifically for it, and they applied it for QLOmni's **extension** target when generating the project. But the same fix wasn't applied for the **app** target, despite both using the nested-folder template. The result is a project that warns on every build out of the box.
+
+The fix is small (add a `PBXFileSystemSynchronizedBuildFileExceptionSet` for the app target excluding `QLOmni/Info.plist`, mirroring the one already in place for the extension), and matches what Xcode *would have* generated if the template author had been consistent.
+
+Flattening the nested folder (`QLOmni/QLOmni/*` → `QLOmni/*`) would also work and removes the redundancy entirely, but means rewriting `INFOPLIST_FILE` paths and Assets catalog references across pbxproj. Not worth it for a single warning.

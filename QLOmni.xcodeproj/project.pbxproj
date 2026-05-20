@@ -50,6 +50,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CF7D16C02FB3B8DB00E54757 /* Exceptions for "QLOmni" folder in "QLOmni" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				QLOmni/Info.plist,
+			);
+			target = CF7D16982FB3B8DA00E54757 /* QLOmni */;
+		};
 		CFEA17D32FB3BA6700532E75 /* Exceptions for "QLOmniExtension" folder in "QLOmniExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -62,6 +69,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CF7D169B2FB3B8DA00E54757 /* QLOmni */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CF7D16C02FB3B8DB00E54757 /* Exceptions for "QLOmni" folder in "QLOmni" target */,
+			);
 			path = QLOmni;
 			sourceTree = "<group>";
 		};
