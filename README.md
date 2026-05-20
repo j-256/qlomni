@@ -8,7 +8,7 @@ Press space on a `.txt` file and macOS shows you the contents. Press space on a 
 
 - **Extensionless executables** (e.g. `myscript`, a shell script saved without `.sh`) – tagged `public.unix-executable`, which has no QuickLook handler.
 - **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), and **INI** (`.ini`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
-- **Files with extensions macOS doesn't recognize** – including `.jsonc`, `.har`, `.env`, `.editorconfig`, `.tf`, `.graphql`, `.md`, `.tsx`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). Some of these (e.g. `.tsx`, `.proto`, `.md`) get UTI declarations from Xcode.app if installed; QLOmni provides the same declarations as a fallback for Macs without it, so preview works either way. See [SUPPORTED.md](SUPPORTED.md) for the full list.
+- **Files with extensions macOS doesn't recognize** – including `.jsonc`, `.har`, `.env`, `.editorconfig`, `.tf`, `.graphql`, `.md`, `.tsx`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
 
 QLOmni handles all of these – with one notable exception.
 
