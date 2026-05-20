@@ -29,7 +29,7 @@ Releases are GitHub Actions jobs that build a universal `QLOmni.app`, ad-hoc sig
 make release V=1.2.3
 ```
 
-This runs preflight checks (clean tree, on `main`, tag doesn't already exist locally or on origin, unit tests pass), conditionally runs integration tests (see below), bumps `MARKETING_VERSION`, commits `release: v1.2.3`, tags `v1.2.3`, and pushes `main` and the tag to `origin`. The tag push triggers CI's full pipeline (`test` → `package` → `release`) and a GitHub Release is created automatically with auto-generated notes plus the SHA-256 and Gatekeeper instructions.
+This runs preflight checks (clean tree, on `main`, tag doesn't already exist locally or on origin, unit tests pass), conditionally runs integration tests (see below), bumps `MARKETING_VERSION`, commits with subject `1.2.3`, creates an annotated tag `v1.2.3`, and pushes `main` and the tag to `origin`. The tag push triggers CI's full pipeline (`test` → `package` → `release`) and a GitHub Release is created automatically with auto-generated notes plus the SHA-256 and Gatekeeper instructions.
 
 If any step fails, `make release` either rolls back automatically (early steps – pbxproj revert) or prints a resume command (late steps – e.g. push). Notably: a network failure during push leaves the commit and tag in place locally, so you finish with a single `git push origin main vX.Y.Z` rather than re-running tests.
 
