@@ -14,3 +14,6 @@ xcuserdata/
 .build/
 .swiftpm/
 Package.resolved
+
+# Local planning/spec docs (ephemeral, not part of the project's docs)
+docs/superpowers/
