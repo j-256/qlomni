@@ -43,6 +43,26 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.har</string>
+			<key>UTTypeDescription</key>
+			<string>HTTP Archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>har</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/json</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.properties</string>
 			<key>UTTypeDescription</key>
 			<string>Properties file</string>

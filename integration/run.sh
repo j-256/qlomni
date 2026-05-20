@@ -108,6 +108,7 @@ assert_lenient() {
 # QLOmni's declaration must win exactly, otherwise something is broken.
 assert_strict sample.jsonc           user.jsonc
 assert_strict sample.code-workspace  user.vscode-workspace
+assert_strict sample.har             user.har
 assert_strict sample.properties      user.properties
 assert_strict sample.jsx             user.jsx
 assert_strict sample.env             user.env
