@@ -65,7 +65,28 @@ extract_supplemental() {
     done < <(supplemental_map)
 }
 
+# Extensions that QLOmni declares but cannot actually preview. Each entry
+# is `extension<TAB>footnote-text`. The generator appends a superscript
+# footnote marker to the row in the table and emits a footnote section
+# below the table. See README.md "Doesn't fix .ts" for the canonical
+# explanation.
+known_broken() {
+    cat <<'EOF'
+ts	Declared but does not preview on modern macOS. CoreTypes claims `.ts` as `public.mpeg-2-transport-stream` (an MPEG-2 video container) and that UTI has a system display bundle that third-party Preview Extensions cannot displace. See [README.md](README.md) for details.
+EOF
+}
+
 generate() {
+    # Build the row list once; we need it twice (rows + footnote section).
+    local rows
+    rows="$(mktemp)"
+    trap 'rm -f "$rows"' RETURN
+    { extract_host; extract_supplemental; } | sort -f > "$rows"
+
+    # Space-padded list of broken extensions for fast membership check.
+    local broken_exts
+    broken_exts=" $(known_broken | cut -f1 | tr '\n' ' ')"
+
     cat <<'HEADER'
 # Supported extensions
 
@@ -75,11 +96,29 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 |-----------|-------------|
 HEADER
 
-    { extract_host; extract_supplemental; } \
-        | sort -f \
-        | while IFS=$'\t' read -r ext desc; do
-            printf '| `.%s` | %s |\n' "$ext" "$desc"
-        done
+    while IFS=$'\t' read -r ext desc; do
+        case "$broken_exts" in
+            *" $ext "*) printf '| `.%s` [^%s] | %s |\n' "$ext" "$ext" "$desc" ;;
+            *)          printf '| `.%s` | %s |\n' "$ext" "$desc" ;;
+        esac
+    done < "$rows"
+
+    # Footnotes section. Markdown's footnote syntax: [^id]: text.
+    # Only emit footnotes for broken extensions that are actually in the
+    # table -- defensive against a known_broken entry whose declaration
+    # has been removed. Footnote IDs are the extension itself for raw-MD
+    # readability and stability under reordering.
+    local printed_header=0
+    while IFS=$'\t' read -r bext btext; do
+        [ -z "$bext" ] && continue
+        if grep -q $'^'"$bext"$'\t' "$rows"; then
+            if [ "$printed_header" = 0 ]; then
+                echo
+                printed_header=1
+            fi
+            printf '[^%s]: %s\n' "$bext" "$btext"
+        fi
+    done < <(known_broken)
 }
 
 generate > "$OUTPUT"
