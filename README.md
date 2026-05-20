@@ -7,8 +7,8 @@ A macOS QuickLook Preview Extension that previews the text files macOS itself do
 Press space on a `.txt` file and macOS shows you the contents. Press space on a few common file types and you get a generic icon and "Document – 4 bytes" instead. The most common cases:
 
 - **Extensionless executables** (e.g. `myscript`, a shell script saved without `.sh`) – tagged `public.unix-executable`, which has no QuickLook handler.
+- **Files with extensions macOS doesn't recognize** – including `.md`, `.jsonc`, `.har`, `.env`, `.tsx`, `.editorconfig`, `.tf`, `.graphql`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
 - **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), and **INI** (`.ini`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
-- **Files with extensions macOS doesn't recognize** – including `.jsonc`, `.har`, `.env`, `.editorconfig`, `.tf`, `.graphql`, `.md`, `.tsx`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
 
 QLOmni handles all of these – with one notable exception.
 
@@ -20,7 +20,7 @@ If you came here looking for an extension that isn't in the list above, check wh
 
 - **Logs and diffs**: `.log`, `.diff`, `.patch` all conform to `public.plain-text` and route through the system text generator.
 - **Scripts with conventional extensions**: `.sh`, `.bash`, `.zsh`, `.py`, `.rb`, `.pl`, `.swift`, `.lua`, `.r` – same.
-- **Tabular**: `.csv` and `.tsv` get dedicated handlers (Apple's bundled `Office.qlgenerator` – the name is unfortunate but it's part of macOS, not Microsoft Office – and the system text generator respectively).
+- **Tabular**: `.csv` and `.tsv` get dedicated handlers (Apple's bundled `Office.qlgenerator` – not to be confused with Microsoft Office – and the system text generator respectively).
 
 To find out whether macOS already covers a given extension on your machine:
 
