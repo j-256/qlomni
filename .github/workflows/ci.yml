@@ -20,8 +20,9 @@ on:
         options: [test, dry-run, release]
         default: test
 
-permissions:
-  contents: write
+# Default to least-privilege; only the `release` job widens to contents: write
+# for the `gh release create` call.
+permissions: read-all
 
 jobs:
   # Resolve which jobs should run, and what version string to stamp into the
@@ -101,7 +102,7 @@ jobs:
     if: needs.plan.outputs.run_test == 'true'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
       - name: Run unit tests
@@ -116,7 +117,7 @@ jobs:
       sha256:   ${{ steps.package.outputs.sha256 }}
       version:  ${{ steps.package.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
@@ -144,7 +145,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qlomni-zip
           path: ${{ steps.package.outputs.zip_name }}
@@ -155,11 +156,13 @@ jobs:
     needs: [plan, package]
     if: needs.plan.outputs.run_release == 'true'
     runs-on: macos-latest
+    permissions:
+      contents: write  # gh release create
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download zip artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: qlomni-zip
 
