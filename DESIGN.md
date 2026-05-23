@@ -109,9 +109,48 @@ This is the case QLStephen handled with `file --mime` content sniffing inside it
 
 The remaining limitation is the `dyn.*` case from [§ Why some files don't preview](#why-some-files-dont-preview), case 1: an unrecognized *extension* (not an absent one) still produces an opaque per-extension synthetic UTI. The mechanism is fully addressable per-extension by adding a UTI declaration to the host plist (most of QLOmni's declarations exist for this reason); what's not addressable is a single broad-claim catch-all. Some extensions QLOmni deliberately doesn't declare because their content shape isn't reliably text – `.tmp` is the canonical example, since vim swap files and notes are text but Word autosaves, partial downloads, and similar are binary. Declaring those as plain-text would briefly try to decode binary content before falling back to the no-preview placeholder. Workaround for files we don't declare: rename or symlink with a known extension.
 
+## Environment-variant suffixes
+
+A class of file shapes that look like multi-extension cases but are well-handled by single-extension UTI declarations: configs that get duplicated per environment with a trailing variant suffix. The dotenv ecosystem is the canonical case (`.env.production`, `.env.development`, `.env.local`, `.env.example`), but the pattern shows up wherever you keep parallel configs by environment – `docker-compose.yml.example`, `nginx.conf.staging`, `database.yml.production`, `Gemfile.test`.
+
+UTI lookup keys on the substring after the *last* dot, so `.env.production` is looked up as extension `production`. A `user.production` declaration claims it. There's no need for any multi-extension matching machinery to reach this case; one ordinary `UTTypeTagSpecification` per suffix is enough.
+
+QLOmni declares eight of these as `user.*` UTIs conforming to `public.plain-text`: `.example`, `.local`, `.development`, `.dev`, `.production`, `.prod`, `.staging`, `.test`. Each is a `UTExportedTypeDeclaration` named `user.<extension>` (`user.example`, `user.local`, etc.). The descriptions are uniform – "Environment-variant config (`.<ext>` suffix)" – because the UTI doesn't claim to know what file shape the *variant* contains, only that the variant marker is text-shaped in practice.
+
+### Why these eight
+
+The pattern is "this extension, on a file, is essentially always an environment-variant marker on a text config." Verified by checking conventions in the dotenv ecosystem (Next.js, Vite, Rails, dotenv-cli) and in tooling that uses suffix-based environment overrides (Docker Compose, `*.example` template conventions across many projects).
+
+- `.example` – template / sample copy of a config. Universal "commit this, gitignore the real one" convention.
+- `.local` – machine-local override. Next.js and Vite both treat `.env.local` as the highest-priority dotenv file.
+- `.development`, `.dev` – dev-environment variant. `.development` is the canonical Next.js / Vite name; `.dev` is the common shortening that humans actually type.
+- `.production`, `.prod` – prod-environment variant. Same canonical/shortening pair.
+- `.staging` – staging-environment variant. Less frameworks-blessed but in widespread practice.
+- `.test` – test-environment variant. Used by Next.js, Jest setups, and the broader Ruby/Rails ecosystem.
+
+These all conform to `public.plain-text` (not `public.source-code`) deliberately. The variant marker doesn't say anything about what the file *contains* – `.env.production` is a dotenv file, but `nginx.conf.production` is nginx config, and `Gemfile.test` is Ruby. Promising "plain text" is the strongest claim that's true of all of them.
+
+### What we deliberately don't declare
+
+Certain candidate suffixes were considered and rejected:
+
+- **Backup / temp suffixes (`.bak`, `.orig`, `.old`, `.tmp`, `.swp`, `.save`)** – the original file could be binary. `image.png.bak` is a binary backup, `recipe.docx.orig` is a Word doc. Declaring these as plain-text would silently try to decode binary content before falling back to the no-preview placeholder, with worse UX than just leaving the generic icon.
+- **Disabled / suspended suffixes (`.disabled`, `.off`, `.suspended`)** – real pattern (e.g. `nginx.conf.disabled` to deactivate a vhost), but uncommon enough that the noise floor outweighs the catch rate. Add later if requested.
+- **Shorter staging shortenings (`.stage`, `.stg`)** – `.staging` is the canonical form; `.stage` and `.stg` exist but are rare in practice. Skipping until specifically requested.
+- **Other environment shortenings (`.qa`, `.uat`, `.demo`)** – same reasoning. Real but org-specific; not common enough to be worth the LS registration cost.
+- **Generic config-version suffixes (`.v1`, `.v2`, `.draft`)** – not environment markers, and `.draft` in particular has too many non-config uses (text drafts, design files).
+
+The general gate: **the suffix has to mean "text config variant, original is text" with very high probability across users**. If 1 in 50 occurrences is a binary file, it's not worth declaring; the user sees worse UX than they would have without the declaration.
+
+### Interaction with multi-extension files
+
+The "extension is the substring after the last dot" rule means these declarations work cleanly for 2-segment names (`.env.production`, `docker-compose.yml.example`) but not for 3+ segments. A file named `.env.production.local` is looked up as extension `local` – `user.local` claims it, so it does preview, but only by collapsing the variant chain to the last marker. See [Multi-extension files](#multi-extension-files-eg-envintegrationstg) below for the deeper case where no last-segment declaration is appropriate.
+
 ## Multi-extension files (e.g. `.env.integration.stg`)
 
 UTI lookup keys on the substring after the *last* dot. There is no glob / regex / multi-extension support in `UTTypeTagSpecification`. A file named `foo.env.integration.stg` has extension `stg`, not `env`, and would need a `user.stg` declaration to be routed – which is wrong (`.stg` isn't generally an env file).
+
+The 2-segment subcase – `.env.production`, `docker-compose.yml.example`, etc. – *is* handled, since the last segment is meaningful and well-known. See [Environment-variant suffixes](#environment-variant-suffixes) above. The unsolvable shape is 3+ segments where the trailing chunk is opaque in the absence of the leading chunks.
 
 There's no clean way to handle this on macOS. Workarounds:
 

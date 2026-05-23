@@ -155,6 +155,18 @@ assert_strict sample.awk             user.awk
 assert_strict sample.sed             user.sed
 assert_strict sample.vim             user.vim
 assert_strict sample.conf            user.conf
+# Environment-variant suffixes -- in practice always trail a real config
+# (.env.production, docker-compose.yml.example, nginx.conf.staging, etc.)
+# and never stand alone as files of their own. See DESIGN.md
+# ("Environment-variant suffixes") for which extensions are included and why.
+assert_strict sample.example         user.example
+assert_strict sample.local           user.local
+assert_strict sample.development     user.development
+assert_strict sample.dev             user.dev
+assert_strict sample.production      user.production
+assert_strict sample.prod            user.prod
+assert_strict sample.staging         user.staging
+assert_strict sample.test            user.test
 
 # Lenient: extensions where another app may reasonably also claim them. We
 # accept losing to a real (non-dyn.*) UTI -- the design is that we act as a

@@ -15,9 +15,12 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.cs` | C# source |
 | `.css` | Cascading Style Sheets |
 | `.dart` | Dart source |
+| `.dev` | Environment-variant config (.dev) |
+| `.development` | Environment-variant config (.development) |
 | `.editorconfig` | EditorConfig file |
 | `.err` | Standard error capture |
 | `.ex` | Elixir source |
+| `.example` | Environment-variant config (.example) |
 | `.feature` | Gherkin / Cucumber feature |
 | `.fish` | Fish shell script |
 | `.go` | Go source |
@@ -36,9 +39,12 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.kt` | Kotlin source |
 | `.kts` | Kotlin source |
 | `.less` | Less stylesheet |
+| `.local` | Environment-variant config (.local) |
 | `.markdown` | Markdown |
 | `.md` | Markdown |
 | `.out` | Standard output capture |
+| `.prod` | Environment-variant config (.prod) |
+| `.production` | Environment-variant config (.production) |
 | `.properties` | Properties file |
 | `.proto` | Protocol Buffers source |
 | `.ps1` | PowerShell script |
@@ -49,7 +55,9 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.scss` | Sass / SCSS stylesheet |
 | `.sed` | sed script |
 | `.sql` | SQL source file |
+| `.staging` | Environment-variant config (.staging) |
 | `.svelte` | Svelte component |
+| `.test` | Environment-variant config (.test) |
 | `.tf` | Terraform configuration |
 | `.tfvars` | Terraform configuration |
 | `.toml` | TOML configuration |
