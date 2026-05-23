@@ -135,4 +135,4 @@ MIT – see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-Inspired by [QLStephen](https://github.com/whomwah/qlstephen).
+Inspired by [QLStephen](https://github.com/whomwah/qlstephen). For differences from [QLStephenSwift](https://github.com/MyCometG3/QLStephenSwift) – another modern descendant of QLStephen – see [COMPARISON.md](COMPARISON.md).
