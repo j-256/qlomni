@@ -39,17 +39,20 @@ extract_host() {
 # Map: appex-claimed UTI -> "extension<TAB>description" lines.
 #
 # Why this is hardcoded rather than parsed: extensions for system-declared
-# UTIs (e.g. public.yaml) live in Apple's CoreTypes plist, not ours --
-# there's no plist of ours to scan. Each entry below is gated on the UTI
-# actually appearing in the appex's QLSupportedContentTypes, so removing
-# a UTI from the appex plist also drops the supplemental rows. UTIs in
-# QLSupportedContentTypes that *are* declared in the host plist (toml,
-# microsoft.ini) need no entry here -- extract_host already covers them.
-# UTIs without a filename extension (public.unix-executable) need none.
+# UTIs (e.g. public.yaml, public.css) live in Apple's CoreTypes plist, not
+# ours -- there's no plist of ours to scan. Each entry below is gated on
+# the UTI actually appearing in the appex's QLSupportedContentTypes, so
+# removing a UTI from the appex plist also drops the supplemental rows.
+# UTIs in QLSupportedContentTypes that *are* declared in the host plist
+# (toml, microsoft.ini) need no entry here -- extract_host already covers
+# them. UTIs without a filename extension (public.unix-executable,
+# public.data, public.content) need none -- they don't map to a single
+# extension a user would search for.
 supplemental_map() {
     cat <<'EOF'
 public.yaml|yaml	YAML configuration
 public.yaml|yml	YAML configuration
+public.css|css	Cascading Style Sheets
 EOF
 }
 

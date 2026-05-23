@@ -14,6 +14,9 @@
 				<string>public.yaml</string>
 				<string>public.toml</string>
 				<string>com.microsoft.ini</string>
+				<string>public.css</string>
+				<string>public.data</string>
+				<string>public.content</string>
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>

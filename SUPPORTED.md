@@ -11,6 +11,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.code-workspace` | VSCode workspace |
 | `.coffee` | CoffeeScript source |
 | `.cs` | C# source |
+| `.css` | Cascading Style Sheets |
 | `.dart` | Dart source |
 | `.editorconfig` | EditorConfig file |
 | `.env` | Environment variable file |
