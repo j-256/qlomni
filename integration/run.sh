@@ -122,6 +122,9 @@ assert_strict sample.out             user.out
 assert_strict sample.yml             public.yaml
 assert_strict sample.yaml            public.yaml
 assert_strict extensionless          public.unix-executable
+assert_strict extensionless-nonexec  public.data
+assert_strict .bashrc                public.data
+assert_strict sample.css             public.css
 assert_strict sample.rs              user.rust
 assert_strict sample.go              user.go-source
 assert_strict sample.kt              user.kotlin
