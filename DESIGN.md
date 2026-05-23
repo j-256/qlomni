@@ -41,6 +41,8 @@ The exact set depends on what's installed; verify with `lsregister -dump | grep 
 
 On a Mac without those apps, the corresponding extensions fall through to case 1 (synthetic `dyn.*`). This is why declaring `.toml` etc. remains valuable even though "the system already knows about it" – *the system might not.*
 
+A subtler case: an app may *handle* a file type without *declaring* its UTI. The `Info.plist` key `CFBundleDocumentTypes` binds extensions to apps for "Open With" routing; `UTExportedTypeDeclarations` / `UTImportedTypeDeclarations` declare what the UTI itself is (and what it conforms to). Only the latter teaches Launch Services anything about the type graph. An app can list `.md` under `CFBundleDocumentTypes` – making it the default editor for the extension – without ever asserting the file is `net.daringfireball.markdown` or that it conforms to `public.plain-text`. From a UTI-resolution standpoint, that app contributes nothing, and the file still lands at `dyn.*`. As of writing (VS Code 1.120), this is the case for VS Code: it claims `.md` only via `CFBundleDocumentTypes`, with no UTI declarations of any kind. So "I have a Markdown-aware editor installed" is not a reliable proxy for "Markdown has a real UTI on this machine."
+
 ## The `.qlgenerator` graveyard
 
 Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugin format). Empirical findings on macOS 26 (Tahoe – Apple's 2025 renumber to align with iOS, succeeding macOS 15 Sequoia) on Apple Silicon, both ad-hoc-signed and unsigned:
