@@ -13,7 +13,7 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 # Override with INTEGRATION=1 or INTEGRATION=0.
 UTI_SURFACE := QLOmni/QLOmni/Info.plist QLOmniExtension/Info.plist integration/
 
-.PHONY: all build install clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported
+.PHONY: all build install uninstall clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported
 
 all: build
 
@@ -96,6 +96,47 @@ purge-ls:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+# Removes QLOmni completely from this machine. Unregisters every LS entry
+# matching our bundle identifiers (live install, stale build paths, DerivedData,
+# Trash leftovers), removes $(INSTALL_DIR)/$(APP_NAME), clears QuickLook caches,
+# and restarts Finder so the change is visible immediately. Idempotent.
+uninstall:
+	@set -e; \
+	echo "=== Unregistering all qlomni paths from Launch Services ==="; \
+	paths=$$($(LSREGISTER) -dump 2>/dev/null | awk ' \
+		/^----+$$/ { delete rec; next } \
+		/^path: / { p = $$0; sub(/^path: +/, "", p); sub(/ \(0x[0-9a-f]+\)$$/, "", p); rec["path"] = p } \
+		/^identifier: +(dev\.j-256\.qlomni|dev\.jklein\.qlomni)/ { \
+			if ("path" in rec) print rec["path"] \
+		}' | sort -u || true); \
+	if [ -z "$$paths" ]; then \
+		echo "(none registered)"; \
+	else \
+		echo "$$paths" | while IFS= read -r p; do \
+			echo "lsregister -u $$p"; \
+			$(LSREGISTER) -u "$$p" || true; \
+		done; \
+	fi; \
+	echo "=== Removing $(INSTALL_DIR)/$(APP_NAME) ==="; \
+	if [ -d $(INSTALL_DIR)/$(APP_NAME) ]; then \
+		rm -rf $(INSTALL_DIR)/$(APP_NAME); \
+		echo "Removed $(INSTALL_DIR)/$(APP_NAME)"; \
+	else \
+		echo "(not present)"; \
+	fi; \
+	echo "=== Clearing QuickLook cache and restarting Finder ==="; \
+	qlmanage -r >/dev/null 2>&1; \
+	qlmanage -r cache >/dev/null 2>&1; \
+	killall Finder 2>/dev/null || true; \
+	echo "=== Verification ==="; \
+	if [ -d $(INSTALL_DIR)/$(APP_NAME) ]; then echo "FAIL: $(INSTALL_DIR)/$(APP_NAME) still present"; exit 1; fi; \
+	leftover_pk=$$(pluginkit -m -p com.apple.quicklook.preview 2>/dev/null | grep -i qlomni || true); \
+	leftover_ls=$$($(LSREGISTER) -dump 2>/dev/null | grep -E 'identifier: +(dev\.j-256\.qlomni|dev\.jklein\.qlomni)' | sort -u || true); \
+	if [ -n "$$leftover_pk" ]; then echo "WARN: pluginkit still lists qlomni:"; echo "$$leftover_pk" | sed 's/^/  /'; fi; \
+	if [ -n "$$leftover_ls" ]; then echo "WARN: lsregister still has qlomni entries:"; echo "$$leftover_ls" | sed 's/^/  /'; fi; \
+	if [ -z "$$leftover_pk" ] && [ -z "$$leftover_ls" ]; then echo "(clean)"; fi; \
+	echo "Uninstall complete."
 
 # Bump MARKETING_VERSION across all targets/configs in pbxproj. Use:
 #   make version V=1.2.3
