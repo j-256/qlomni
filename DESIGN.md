@@ -14,7 +14,7 @@ Three failure modes, in roughly increasing order of subtlety:
 
 ### 1. Unknown extension → `dyn.*` UTI
 
-If the file's extension is not declared by *any* installed bundle, Launch Services synthesizes a UTI of the form `dyn.ah62d4rv4ge81k5pu` whose conformance tree is bare: `[public.data, public.item]`. No system handler claims `public.data` or `public.item` generically (see "the wildcard-UTI trap" below), so no preview.
+If the file's extension is not declared by *any* installed bundle, Launch Services synthesizes a UTI of the form `dyn.ah62d4rv4ge81k5pu` whose conformance tree is bare: `[public.data, public.item]`. The synthesized UTI is opaque and per-extension, so no third-party handler can claim it directly. The only ancestors are `public.data` and `public.item`, both of which are wildcard UTIs – and `.appex` claims on wildcards don't dispatch via conformance walks. The concrete-match path also doesn't help here, since the file's concrete UTI is the opaque `dyn.*`, not `public.data`. See [How wildcard-UTI claims actually dispatch](#how-wildcard-uti-claims-actually-dispatch) below.
 
 ### 2. UTI that doesn't conform to `public.plain-text`
 
@@ -22,6 +22,8 @@ The system text generator (the one that previews `.txt`, `.md`, `.swift`, etc.) 
 
 - `public.yaml` – conforms to `public.text` directly.
 - `public.toml` – same.
+- `com.microsoft.ini` – same.
+- `public.css` – same.
 
 These files have a real UTI, the file is plain text, but the system text generator declines to handle them, and no other handler claims the more general `public.text`.
 
@@ -39,25 +41,40 @@ The exact set depends on what's installed; verify with `lsregister -dump | grep 
 
 On a Mac without those apps, the corresponding extensions fall through to case 1 (synthetic `dyn.*`). This is why declaring `.toml` etc. remains valuable even though "the system already knows about it" – *the system might not.*
 
-## How the .appex routes (the wildcard-UTI trap)
+## The `.qlgenerator` graveyard
 
-We discovered, empirically, that **claiming a wildcard UTI (`public.data`, `public.item`) from a Preview Extension does not result in `dyn.*`-typed files being routed to the extension**, even though the conformance checks `dyn.* conformsTo public.data` and `dyn.* conformsTo public.item` both return true.
+Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugin format). Empirical findings on macOS 26 (Tahoe – Apple's 2025 renumber to align with iOS, succeeding macOS 15 Sequoia) on Apple Silicon, both ad-hoc-signed and unsigned:
 
-What appears to be happening:
+- `qlmanage -m plugins` shows only Apple's bundled `.qlgenerator` plugins. User-installed ones don't appear.
+- `lsregister -f ~/Library/QuickLook/QLStephen.qlgenerator` returns exit code -10811 ("kLSUnknownErr").
+- `pluginkit -m -p com.apple.quicklook.preview` shows only `.appex` Preview Extensions.
 
-- PluginKit dispatch finds our extension as a candidate (we show up in `pluginkit -m -p com.apple.quicklook.preview`).
-- But QuickLook applies an additional filter that excludes wildcard-UTI matches, presumably to keep arbitrary third-party Preview Extensions from claiming every file on the user's disk.
-- The result is a "Document" placeholder, not a route to our extension.
+Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions; loading support has since been removed (or restricted to Apple-bundled plugins). QLOmni shares QLStephen's core idea – surface the contents of files macOS itself doesn't preview – but extends it in two ways:
 
-`public.data` and `public.item` are both flagged `is-wildcard` in `lsregister -dump` output (alongside `public.composite-content` and similar broad UTIs). The wildcard flag is the most likely trigger for the routing filter, though we haven't found Apple documentation that confirms this.
+- Built on the Preview Extension (`.appex`) API that current macOS still loads, replacing the dead `.qlgenerator` bundle format.
+- Bundles UTI declarations for common modern file types (`.jsonc`, `.code-workspace`, `.env`, `.editorconfig`, `.tf`, `.graphql`, etc.), so those files get a real plain-text-conforming UTI and route through the system text generator unchanged. The named-extension category – "macOS doesn't know what `.jsonc` is" – is unreachable from a content-sniffing approach alone, since there's no path from "this file's bytes look like text" back to "rewrite the UTI assignment." Host-plist declarations are the layer that solves it.
 
-This isn't documented anywhere we could find; it's just observed behavior. QLStephen on legacy macOS may have benefited from looser routing in the `.qlgenerator` era.
+Worth flagging on content sniffing specifically, since QLStephen leaned on it heavily: the *shell-out* implementation (`Process()` on `/usr/bin/file`) is unreachable from a sandboxed Preview Extension (see [Sandbox limits on Preview Extensions](#sandbox-limits-on-preview-extensions) below for the empirical verification), but in-process byte inspection works fine and is what both QLOmni and QLStephenSwift use. Content sniffing as an idea isn't dead, only the shell-out implementation is.
 
-**Implication:** there is no broad-net preview fallback. To preview an unknown extension, the extension must be declared somewhere – either exporting a `user.*` UTI or importing a canonical one. There is no "register once, catch everything" option.
+## How wildcard-UTI claims actually dispatch
+
+`public.data`, `public.item`, `public.content`, and a handful of other broad UTIs are flagged `is-wildcard` in `lsregister -dump` output. Whether and how `.appex` claims on these UTIs dispatch is undocumented; the empirical rule we observe:
+
+**A wildcard-UTI claim dispatches only when the file's *concrete* UTI is exactly the claimed wildcard. It does not dispatch via conformance from a more specific concrete UTI.**
+
+Three cases that illustrate the rule:
+
+- A file tagged `public.data` directly (extensionless non-executable, dotfile-with-no-further-dot) → claimed `public.data` → **dispatches**. The concrete UTI matches the claim.
+- A file tagged `dyn.ah62...` (unknown extension) → conforms to `public.data` → **does not dispatch**. The concrete UTI is the synthetic `dyn.*`, not `public.data`.
+- A file tagged `public.css` → conforms to `public.data` (and `public.text`, and `public.content`) → **does not dispatch through a wildcard claim**. The concrete UTI is `public.css`; QL routes by that, not via conformance walk to a wildcard ancestor. (`.css` files do still preview, since the appex claims `public.css` directly as a non-wildcard entry – this is what the wildcard-claim path *isn't* doing.)
+
+This is why broad claims work for the narrow case (files genuinely tagged with the wildcard UTI itself) but don't form a catch-all fallback. To preview a file whose concrete UTI is `dyn.*` or any non-wildcard, that specific UTI must be declared or claimed somewhere – there's no "register once, catch all unknowns" option.
+
+The most likely mechanism is that QL dispatches by concrete-UTI lookup against `QLSupportedContentTypes` entries, with no conformance walk on the file's UTI tree when the candidate claim is `is-wildcard`. We haven't confirmed this against Apple source, but it's consistent with every observation.
 
 ## The system display bundle trap
 
-Sibling to the wildcard-UTI trap, and just as undocumented: **third-party Preview Extensions cannot override UTIs that have a system display bundle.**
+Sibling to the wildcard-UTI dispatch rule (see [How wildcard-UTI claims actually dispatch](#how-wildcard-uti-claims-actually-dispatch)), and just as undocumented: **third-party Preview Extensions cannot override UTIs that have a system display bundle.**
 
 Discovered while trying to handle `public.mpeg-2-transport-stream` (which CoreTypes assigns to all `.ts` files, including TypeScript source). Adding it to our `QLSupportedContentTypes` had no effect – our `.appex` was never consulted. The QL log showed:
 
@@ -75,6 +92,33 @@ UTIs known to have system display bundles include `public.movie` and everything 
 
 **Implication for QLOmni:** any extension that gets tagged with a UTI claimed by a system display bundle is unrecoverable from a third-party `.appex`. `.ts` is the case we hit (CoreTypes maps `.ts → public.mpeg-2-transport-stream`, which routes to the Movie display bundle). Files with these extensions on macOS as of writing won't preview as text no matter what we declare.
 
+## Files tagged directly as `public.data`
+
+Two filename shapes get tagged `public.data` directly by Launch Services, with `kMDItemContentTypeTree = [public.data, public.item]` – no synthetic `dyn.*`:
+
+- **No extension, no `+x` bit** – e.g. a notes file named `shopping-list`. Without an extension, executable bit, or MIME-type hint, LS has nothing to fingerprint, so it falls back to the most generic UTI in the system.
+- **Dot-prefix only, no further dot** – e.g. `.gitignore`, `.bashrc`, `.zshrc`, `.htaccess`, `.vimrc`. UTI lookup keys on the substring after the *last* dot, but a leading dot marks the file as hidden (per Unix convention) rather than starting an extension. With no other dot in the name, LS treats these as having no extension at all.
+
+Compare to `something.gitignore` (regular filename with `gitignore` as the extension): that resolves to a synthetic `dyn.*`, since `gitignore` isn't declared as an extension by any installed bundle. The two filename shapes look similar but route differently.
+
+Both `public.data`-tagged shapes route to the appex via the `public.data` claim in `QLSupportedContentTypes`, per the rule in [How wildcard-UTI claims actually dispatch](#how-wildcard-uti-claims-actually-dispatch). The concrete UTI on the file is `public.data`, the appex claims `public.data`, the concrete-match path applies.
+
+This is the case QLStephen handled with `file --mime` content sniffing inside its `.qlgenerator`. We don't need to sniff to *route* this case – the file is already tagged with a UTI we can claim. We do still sniff to *render* it: `public.data` catches arbitrary binary blobs as well as text, so `PreviewRenderer` runs an in-process NUL byte check and bails on binary content rather than dumping bytes into the preview.
+
+The remaining limitation is the `dyn.*` case from [§ Why some files don't preview](#why-some-files-dont-preview), case 1: an unrecognized *extension* (not an absent one) still produces an opaque per-extension synthetic UTI that no third-party claim can reach. Workaround: declare the extension in the host plist (which is what most of QLOmni's UTI declarations do), or rename / symlink the file with a known extension.
+
+## Multi-extension files (e.g. `.env.integration.stg`)
+
+UTI lookup keys on the substring after the *last* dot. There is no glob / regex / multi-extension support in `UTTypeTagSpecification`. A file named `foo.env.integration.stg` has extension `stg`, not `env`, and would need a `user.stg` declaration to be routed – which is wrong (`.stg` isn't generally an env file).
+
+There's no clean way to handle this on macOS. Workarounds:
+
+- Live without preview for those files.
+- Symlink to a single-extension copy.
+- Use a tool with its own filename-pattern matching (not QuickLook).
+
+This is a long-standing platform limitation, not specific to QLOmni.
+
 ## Sandbox limits on Preview Extensions
 
 Modern Preview Extensions run inside a sandboxed XPC service. We verified the following empirically:
@@ -84,12 +128,6 @@ Modern Preview Extensions run inside a sandboxed XPC service. We verified the fo
 - Reading the file in chunks via `FileHandle(forReadingFrom:)` works.
 
 Originally we planned to mirror QLStephen's `file --mime` content sniff for binary detection. We can't shell out, but in-process byte sniffing works (we read the prefix via `FileHandle` and look for a NUL – the same heuristic `git diff` uses). `PreviewRenderer` does this and throws on binary content, which makes QuickLook fall through to the no-preview placeholder rather than rendering garbage. The text-shaped UTIs we claim normally won't be binary, but `public.unix-executable` covers Mach-O binaries too, and pressing space on one of those should fail gracefully rather than dumping bytes.
-
-## QLPreviewReply quirks
-
-- `contentSize:` should be `.zero` for HTML/plainText replies. We saw `CGSize(width: 800, height: 600)` get rejected with "Context size invalid in preview generation" even though the docs imply it's a hint. `.zero` works.
-- The data-creation block's signature in Swift is `(QLPreviewReply) throws -> Data`. Throwing from this block makes QuickLook fall through to the next handler (which is what we want for unreadable / non-text files).
-- Plain text rendering is robust: if the framework can't decode the data as a string, it shows the system "no preview" placeholder rather than rendering garbage.
 
 ## UTI identifier choice
 
@@ -147,9 +185,15 @@ The integration harness (`integration/run.sh`) categorizes contested extensions 
 Each piece does a different job:
 
 - **Host app's UTI declarations** – make sure the file gets tagged with a real, plain-text-conforming UTI instead of `dyn.*`. This enables the *system text generator* to preview it.
-- **`.appex`'s `QLSupportedContentTypes`** – fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`) and for UTIs that have no system preview handler at all (`public.unix-executable`).
+- **`.appex`'s `QLSupportedContentTypes`** – fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`, `com.microsoft.ini`, `public.css`), for UTIs that have no system preview handler at all (`public.unix-executable`), and for the wildcard `public.data` / `public.content` claims that route files tagged directly with those UTIs (see [Files tagged directly as `public.data`](#files-tagged-directly-as-publicdata)).
 
-The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get plain-text-conforming UTIs via the host plist alone – no `.appex` involvement. Only `public.yaml`, `public.toml`, and `public.unix-executable` need the `.appex` to handle preview directly.
+The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get plain-text-conforming UTIs via the host plist alone – no `.appex` involvement. Only the UTIs listed above need the `.appex` to handle preview directly.
+
+## QLPreviewReply quirks
+
+- `contentSize:` should be `.zero` for HTML/plainText replies. We saw `CGSize(width: 800, height: 600)` get rejected with "Context size invalid in preview generation" even though the docs imply it's a hint. `.zero` works.
+- The data-creation block's signature in Swift is `(QLPreviewReply) throws -> Data`. Throwing from this block makes QuickLook fall through to the next handler (which is what we want for unreadable / non-text files).
+- Plain text rendering is robust: if the framework can't decode the data as a string, it shows the system "no preview" placeholder rather than rendering garbage.
 
 ## Stale PluginKit and Launch Services entries
 
@@ -177,49 +221,6 @@ qlmanage -r && qlmanage -r cache
 `lsregister` lives at `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister`. It's not on `$PATH` by default.
 
 The Xcode build pipeline auto-registers the Debug build product via `lsregister -f -R -trusted` on every build. If you renamed the bundle, that DerivedData path may still hold the old registration; clean DerivedData (or unregister the path explicitly) to avoid confusion.
-
-## The `.qlgenerator` graveyard
-
-Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugin format). Empirical findings on macOS 26 (Apple Silicon, both ad-hoc-signed and unsigned):
-
-- `qlmanage -m plugins` shows only Apple's bundled `.qlgenerator` plugins. User-installed ones don't appear.
-- `lsregister -f ~/Library/QuickLook/QLStephen.qlgenerator` returns exit code -10811 ("kLSUnknownErr").
-- `pluginkit -m -p com.apple.quicklook.preview` shows only `.appex` Preview Extensions.
-
-Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions; loading support has since been removed (or restricted to Apple-bundled plugins). QLOmni shares QLStephen's core idea – surface the contents of files macOS itself doesn't preview – but extends it in two ways:
-
-- Built on the Preview Extension (`.appex`) API that current macOS still loads, replacing the dead `.qlgenerator` bundle format.
-- Bundles UTI declarations for common modern file types (`.jsonc`, `.code-workspace`, `.env`, `.editorconfig`, `.tf`, `.graphql`, etc.), so those files get a real plain-text-conforming UTI and route through the system text generator unchanged. QLStephen's approach (claim broadly, sniff with `file --mime`) couldn't address this category at all, since the wildcard-UTI trap blocks broad claims and modern Preview Extensions can't shell out to `/usr/bin/file` from inside the sandbox.
-
-## Extensionless non-executable files
-
-Files with no extension and no `+x` bit (e.g. a notes file named `shopping-list`) get tagged `public.data` directly – not even a synthetic `dyn.*`. Launch Services has nothing to fingerprint: no extension, no MIME-type hint, no executable bit. `public.data` is the most generic UTI in the system, and `kMDItemContentTypeTree` for these files is just `[public.data, public.item]`.
-
-We can't preview them. Three reasons in order:
-
-1. **Wildcard-UTI trap** (see above): claiming `public.data` from a Preview Extension is silently ignored by QuickLook's routing filter. The `is-wildcard` flag on `public.data` makes `.appex` claims a no-op.
-2. **No usable conformance ancestor.** `public.data`'s only parent is `public.item`, also a wildcard. There is no non-wildcard UTI between "every file" and "specific format" that we could claim instead.
-3. **No way for a third party to override the UTI assignment itself.** Launch Services' tagging logic for extensionless files is in the framework, not pluggable.
-
-Workarounds for users:
-
-- `chmod +x file` – flips the UTI to `public.unix-executable`, which our `.appex` handles. Side-effect-free for files you don't intend to run, since you'd never invoke them anyway.
-- Symlink with a real extension: `ln -s file file.txt`, preview the symlink.
-- Add a real extension to the file itself.
-
-This is the same wall QLStephen ran into, which is why QLStephen relied on `file --mime` content-sniffing inside its `.qlgenerator`. That approach is dead on modern macOS for two reasons (the `.qlgenerator` graveyard above, and the Preview Extension sandbox forbidding `Process()` shell-outs), and **even if we could shell out, the dispatch wouldn't reach us in the first place** because of the wildcard-UTI trap. The categorization problem is upstream of the rendering problem.
-
-## Multi-extension files (e.g. `.env.integration.stg`)
-
-UTI lookup keys on the substring after the *last* dot. There is no glob / regex / multi-extension support in `UTTypeTagSpecification`. A file named `foo.env.integration.stg` has extension `stg`, not `env`, and would need a `user.stg` declaration to be routed – which is wrong (`.stg` isn't generally an env file).
-
-There's no clean way to handle this on macOS. Workarounds:
-
-- Live without preview for those files.
-- Symlink to a single-extension copy.
-- Use a tool with its own filename-pattern matching (not QuickLook).
-
-This is a long-standing platform limitation, not specific to QLOmni.
 
 ## File-system-synchronized groups vs the new-app template
 

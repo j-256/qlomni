@@ -7,8 +7,9 @@ A macOS QuickLook Preview Extension that previews the text files macOS itself do
 Press space on a `.txt` file and macOS shows you the contents. Press space on a few common file types and you get a generic icon and "Document – 4 bytes" instead. The most common cases:
 
 - **Extensionless executables** (e.g. `myscript`, a shell script saved without `.sh`) – tagged `public.unix-executable`, which has no QuickLook handler.
+- **Files tagged directly as `public.data`** – extensionless non-executables (a notes file named `shopping-list`) and dot-prefix-only filenames with no further dot (`.gitignore`, `.bashrc`, `.htaccess`, `.vimrc`). Launch Services has nothing to fingerprint, so it tags them with the system's most generic UTI; no other handler claims it.
 - **Files with extensions macOS doesn't recognize** – including `.md`, `.jsonc`, `.har`, `.env`, `.tsx`, `.editorconfig`, `.tf`, `.graphql`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
-- **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), and **INI** (`.ini`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
+- **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), **INI** (`.ini`), and **CSS** (`.css`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
 
 QLOmni handles all of these – with one notable exception.
 
@@ -34,7 +35,7 @@ If `kMDItemContentType` is a real UTI (not `dyn.*`) and `kMDItemContentTypeTree`
 
 Two pieces, both shipped in a single bundle:
 
-- A **Preview Extension** (`.appex`) that handles `public.unix-executable`, `public.yaml`, and `public.toml` directly – rendering each as plain text.
+- A **Preview Extension** (`.appex`) that handles `public.unix-executable`, `public.yaml`, `public.toml`, `com.microsoft.ini`, `public.css`, and `public.data` / `public.content` directly – rendering each as plain text. (`public.content` is a supertype of `public.data`; both are listed for belt-and-suspenders coverage of files macOS tags with the bare wildcard.) Binary content is detected in-process via a NUL byte check and falls through to the system "no preview" placeholder rather than rendering garbage.
 - A **set of UTI declarations** for common formats macOS doesn't natively know about. Most extensions get assigned a plain-text-conforming UTI and route through the system text generator unchanged; QLOmni's role is just making sure the file *gets* a sensible UTI.
 
 For the technical details – including why some plausible approaches don't work – see [DESIGN.md](DESIGN.md).
@@ -63,7 +64,7 @@ rm -rf /Applications/QLOmni.app
 qlmanage -r && qlmanage -r cache
 ```
 
-Note that this removes both the Preview Extension *and* the UTI declarations – files that were resolving to a real UTI (e.g. `user.jsonc`) will revert to a synthetic `dyn.*` type after the next Launch Services scan, and lose preview support along with it.
+Note that this removes both the Preview Extension *and* the UTI declarations – files that were resolving to a real UTI (e.g. `user.jsonc`) will revert to a synthetic `dyn.*` type after the next Launch Services scan, and lose preview support along with it. `public.data`-tagged files (extensionless non-executables, dotfiles like `.gitignore` – see [DESIGN.md § files tagged directly as `public.data`](DESIGN.md#files-tagged-directly-as-publicdata) for why they end up with that UTI) will also stop previewing, since they were routing through the appex's `public.data` claim rather than getting a UTI from the host plist.
 
 ## Verify
 
@@ -120,7 +121,7 @@ Two helpers under `tools/` for poking at how the system resolves a given extensi
 - Plain text rendering only – no syntax highlighting, no pretty-printing.
 - Files larger than 1 MiB are truncated.
 - Multi-extension files (e.g. `.env.production.local`) aren't routable on macOS at all; this is a platform limitation, not a QLOmni one.
-- Extensionless non-executable files (e.g. a notes file named `shopping-list` with no extension and no `+x` bit) can't be previewed. macOS tags them as `public.data`, which is a wildcard UTI that QuickLook refuses to route to third-party Preview Extensions. Workaround: `chmod +x` the file (it'll route through our `public.unix-executable` handler), or symlink it with a real extension. See [DESIGN.md § extensionless non-executable files](DESIGN.md#extensionless-non-executable-files).
+- Files with an unrecognized *extension* (e.g. `notes.tmp`, where `tmp` isn't declared by any installed bundle) can't be previewed. macOS synthesizes a per-extension `dyn.*` UTI that's opaque and unenumerable, so no third-party Preview Extension can claim it in advance. This is distinct from the *no-extension* case – `shopping-list` (no extension at all) does preview, since macOS tags it `public.data` directly. Workaround for the `dyn.*` case: rename or symlink the file with a known extension. See [DESIGN.md § how wildcard-UTI claims actually dispatch](DESIGN.md#how-wildcard-uti-claims-actually-dispatch).
 - `.ts` caveat above is also a limitation, not a bug.
 
 ## Contributing
