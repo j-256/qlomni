@@ -111,7 +111,6 @@ assert_strict sample.code-workspace  user.vscode-workspace
 assert_strict sample.har             user.har
 assert_strict sample.properties      user.properties
 assert_strict sample.jsx             user.jsx
-assert_strict sample.env             user.env
 assert_strict sample.editorconfig    user.editorconfig
 assert_strict sample.tf              user.terraform
 assert_strict sample.tfvars          user.terraform

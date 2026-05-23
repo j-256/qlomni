@@ -16,7 +16,6 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.css` | Cascading Style Sheets |
 | `.dart` | Dart source |
 | `.editorconfig` | EditorConfig file |
-| `.env` | Environment variable file |
 | `.err` | Standard error capture |
 | `.ex` | Elixir source |
 | `.feature` | Gherkin / Cucumber feature |

@@ -8,7 +8,7 @@ Press space on a `.txt` file and macOS shows you the contents. Press space on a 
 
 - **Extensionless executables** (e.g. `myscript`, a shell script saved without `.sh`) – tagged `public.unix-executable`, which has no QuickLook handler.
 - **Files tagged directly as `public.data`** – extensionless non-executables (a notes file named `shopping-list`) and dot-prefix-only filenames with no further dot (`.gitignore`, `.bashrc`, `.htaccess`, `.vimrc`). Launch Services has nothing to fingerprint, so it tags them with the system's most generic UTI; no other handler claims it.
-- **Files with extensions macOS doesn't recognize** – including `.md`, `.jsonc`, `.har`, `.env`, `.tsx`, `.editorconfig`, `.tf`, `.graphql`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
+- **Files with extensions macOS doesn't recognize** – including `.md`, `.jsonc`, `.har`, `.tsx`, `.editorconfig`, `.tf`, `.graphql`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
 - **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), **INI** (`.ini`), and **CSS** (`.css`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
 
 QLOmni handles all of these – with one notable exception.

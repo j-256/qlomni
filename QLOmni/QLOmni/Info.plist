@@ -116,23 +116,6 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>user.env</string>
-			<key>UTTypeDescription</key>
-			<string>Environment variable file</string>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.plain-text</string>
-			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>env</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
 			<string>user.editorconfig</string>
 			<key>UTTypeDescription</key>
 			<string>EditorConfig file</string>
