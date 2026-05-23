@@ -15,7 +15,7 @@ A side-by-side of two macOS QuickLook Preview Extensions that descend from [QLSt
 |----------------------------------------------------------------|-----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | Stated mission                                                 | Modern Swift rewrite of QLStephen for **plain-text files without extensions**.          | Preview the **set of text-shaped files macOS itself doesn't** – extensionless, unrecognized extensions, and UTIs that don't route to a handler. |
 | Routing strategy: appex claims                                 | Three wildcard UTIs: `public.data`, `public.content`, `public.unix-executable`. By the wildcard-claim dispatch rule, these only fire when the file's *concrete* UTI matches – i.e. genuinely extensionless files, dotfiles-with-no-further-dot, and Unix executables. | Same three wildcards, plus four non-wildcard UTIs the system text generator skips (`public.yaml`, `public.toml`, `com.microsoft.ini`, `public.css`). |
-| Routing strategy: host plist declarations                      | None.                                                                                   | ~30 per-extension UTI declarations (`UTExportedTypeDeclarations` for novel UTIs, `UTImportedTypeDeclarations` for ones already in the ecosystem) covering ~57 extensions. These give unknown extensions a real UTI so they resolve to something other than `dyn.*`. |
+| Routing strategy: host plist declarations                      | None.                                                                                   | Per-extension UTI declarations covering [the extensions in `SUPPORTED.md`](SUPPORTED.md) (`UTExportedTypeDeclarations` for novel UTIs, `UTImportedTypeDeclarations` for ones already in the ecosystem). These give unknown extensions a real UTI so they resolve to something other than `dyn.*`. |
 | Where rendering happens                                        | Always inside the appex.                                                                | Mostly **outside** QLOmni – for declared extensions that conform to `public.plain-text`, the system's bundled text generator does the rendering. The appex only handles UTIs the system won't route on its own. |
 
 ## File-coverage matrix
@@ -39,7 +39,7 @@ Cells reflect each project's *design intent and declared UTIs*, not exhaustive e
 | TypeScript (`.tsx`)                                                                             | ❌                                            | ✅                                                      | `.tsx` doesn't collide with the MPEG-TS handler.                                                                                                                            |
 | `.txt` and other extensions macOS already previews                                              | Same (system handler)                         | Same (system handler)                                   | Neither project tries to displace working system handlers.                                                                                                                  |
 
-QLOmni publishes the full per-extension list in [`SUPPORTED.md`](SUPPORTED.md) (currently ~57 extensions across ~37 UTIs).
+QLOmni publishes the full per-extension list in [`SUPPORTED.md`](SUPPORTED.md).
 
 ### Why the QLStephenSwift coverage is narrower
 
@@ -50,7 +50,7 @@ QuickLook dispatches by a file's concrete UTI. It doesn't walk up the conformanc
 Two changes would close the gap on QLStephenSwift's side:
 
 - Add specific non-wildcard UTIs (`public.yaml`, `public.css`, etc.) to its appex's `QLSupportedContentTypes`. This is what QLOmni does for the four UTIs the system text generator skips.
-- Declare per-extension UTIs in a host plist for unknown extensions, so they resolve to a real UTI instead of `dyn.*`. This is what QLOmni does for the ~57 extensions in [`SUPPORTED.md`](SUPPORTED.md).
+- Declare per-extension UTIs in a host plist for unknown extensions, so they resolve to a real UTI instead of `dyn.*`. This is what QLOmni does for the extensions in [`SUPPORTED.md`](SUPPORTED.md).
 
 QLStephenSwift's README explicitly declines the second, reasoning that declaring a UTI conforming to `public.plain-text` would invite the system text generator to take over.
 
