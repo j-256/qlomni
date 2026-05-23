@@ -152,6 +152,10 @@ assert_strict sample.feature         user.gherkin
 assert_strict sample.hbs             user.handlebars
 assert_strict sample.handlebars      user.handlebars
 assert_strict sample.cjs             user.cjs
+assert_strict sample.awk             user.awk
+assert_strict sample.sed             user.sed
+assert_strict sample.vim             user.vim
+assert_strict sample.conf            user.conf
 
 # Lenient: extensions where another app may reasonably also claim them. We
 # accept losing to a real (non-dyn.*) UTI -- the design is that we act as a

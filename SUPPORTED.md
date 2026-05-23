@@ -4,12 +4,14 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 
 | Extension | Description |
 |-----------|-------------|
+| `.awk` | AWK script |
 | `.cjs` | CommonJS module |
 | `.clj` | Clojure source |
 | `.cljc` | Clojure source |
 | `.cljs` | Clojure source |
 | `.code-workspace` | VSCode workspace |
 | `.coffee` | CoffeeScript source |
+| `.conf` | Configuration file |
 | `.cs` | C# source |
 | `.css` | Cascading Style Sheets |
 | `.dart` | Dart source |
@@ -46,6 +48,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.sass` | Sass / SCSS stylesheet |
 | `.scala` | Scala source |
 | `.scss` | Sass / SCSS stylesheet |
+| `.sed` | sed script |
 | `.sql` | SQL source file |
 | `.svelte` | Svelte component |
 | `.tf` | Terraform configuration |
@@ -53,6 +56,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.toml` | TOML configuration |
 | `.ts` [^ts] | TypeScript source |
 | `.tsx` | TypeScript source |
+| `.vim` | Vim script |
 | `.vue` | Vue single-file component |
 | `.yaml` | YAML configuration |
 | `.yml` | YAML configuration |
