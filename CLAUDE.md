@@ -23,6 +23,8 @@ It opens a QuickLook panel (same effect as pressing spacebar in Finder) and retu
 
 For headless checks of UTI dispatch, use `mdls -name kMDItemContentType -name kMDItemContentTypeTree <file>` and `lsregister -dump`. The project ships `tools/uti.swift` and `tools/mdls-summary.sh` as wrappers; `tools/uti.swift` queries Launch Services live, so prefer it right after a registration change.
 
+To survey contention across every declared extension at once (rather than one-at-a-time), run `make audit-collisions`. It splits output into different-UTI conflicts (real divergence with another bundle) and same-UTI imports (we and they import the same identifier, no effective conflict). Useful before adding new declarations, and after macOS updates.
+
 ## Cache layers
 
 `mds` (Spotlight metadata), Launch Services, and QuickLook dispatch each cache state, and they don't always invalidate together. After a `make install`, `mdls` can lag the live Launch Services view by seconds; `integration/run.sh` already retries `read_uti` to absorb this. If a single observation contradicts what README.md or DESIGN.md says should happen, repeat it (and check `tools/uti.swift`) before concluding the docs are wrong – odds are it's a cache, not a real disagreement.

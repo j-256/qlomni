@@ -333,3 +333,10 @@ supported:
 # without a separate workflow step.
 check-supported:
 	./tools/gen-supported.sh --check
+
+# Audit: report extensions QLOmni declares that also have an active claim
+# from another bundle on this machine (Apple CoreTypes, Xcode, etc.). Splits
+# output into different-UTI conflicts (real divergence) and same-UTI imports
+# (informational). Local-only -- depends on the LS state of the machine.
+audit-collisions:
+	./tools/audit-collisions.sh
