@@ -26,6 +26,23 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.jsonl</string>
+			<key>UTTypeDescription</key>
+			<string>JSON Lines</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>jsonl</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.vscode-workspace</string>
 			<key>UTTypeDescription</key>
 			<string>VSCode workspace</string>

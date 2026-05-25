@@ -35,6 +35,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.hs` | Haskell source |
 | `.ini` | Windows INI configuration |
 | `.jsonc` | JSON with comments |
+| `.jsonl` | JSON Lines |
 | `.jsx` | React JavaScript |
 | `.kt` | Kotlin source |
 | `.kts` | Kotlin source |
@@ -42,6 +43,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.local` | Environment-variant config (.local) |
 | `.markdown` | Markdown |
 | `.md` | Markdown |
+| `.ndjson` | JSON Lines |
 | `.out` | Standard output capture |
 | `.prod` | Environment-variant config (.prod) |
 | `.production` | Environment-variant config (.production) |

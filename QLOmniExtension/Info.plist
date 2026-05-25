@@ -15,6 +15,7 @@
 				<string>public.toml</string>
 				<string>com.microsoft.ini</string>
 				<string>public.css</string>
+				<string>public.ndjson</string>
 				<string>public.data</string>
 				<string>public.content</string>
 			</array>

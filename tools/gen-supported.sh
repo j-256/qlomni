@@ -53,6 +53,7 @@ supplemental_map() {
 public.yaml|yaml	YAML configuration
 public.yaml|yml	YAML configuration
 public.css|css	Cascading Style Sheets
+public.ndjson|ndjson	JSON Lines
 EOF
 }
 

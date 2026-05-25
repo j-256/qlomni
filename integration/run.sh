@@ -107,6 +107,7 @@ assert_lenient() {
 # Strict: extensions where no other declarer is expected to compete with us.
 # QLOmni's declaration must win exactly, otherwise something is broken.
 assert_strict sample.jsonc           user.jsonc
+assert_strict sample.jsonl           user.jsonl
 assert_strict sample.code-workspace  user.vscode-workspace
 assert_strict sample.har             user.har
 assert_strict sample.properties      user.properties
@@ -120,6 +121,7 @@ assert_strict sample.err             user.err
 assert_strict sample.out             user.out
 assert_strict sample.yml             public.yaml
 assert_strict sample.yaml            public.yaml
+assert_strict sample.ndjson          public.ndjson
 assert_strict extensionless          public.unix-executable
 assert_strict extensionless-nonexec  public.data
 assert_strict .bashrc                public.data
