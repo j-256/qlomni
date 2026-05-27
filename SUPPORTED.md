@@ -4,6 +4,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 
 | Extension | Description |
 |-----------|-------------|
+| `.astro` | Astro component |
 | `.awk` | AWK script |
 | `.cjs` | CommonJS module |
 | `.clj` | Clojure source |
@@ -52,6 +53,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.ps1` | PowerShell script |
 | `.psm1` | PowerShell script |
 | `.rs` | Rust source |
+| `.sample` | Environment-variant config (.sample) |
 | `.sass` | Sass / SCSS stylesheet |
 | `.scala` | Scala source |
 | `.scss` | Sass / SCSS stylesheet |

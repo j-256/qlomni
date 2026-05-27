@@ -135,6 +135,7 @@ assert_strict sample.scala           user.scala
 assert_strict sample.dart            user.dart
 assert_strict sample.vue             user.vue
 assert_strict sample.svelte          user.svelte
+assert_strict sample.astro           user.astro
 assert_strict sample.sass            user.sass
 assert_strict sample.scss            user.sass
 assert_strict sample.less            user.less
@@ -162,6 +163,7 @@ assert_strict sample.conf            user.conf
 # and never stand alone as files of their own. See DESIGN.md
 # ("Environment-variant suffixes") for which extensions are included and why.
 assert_strict sample.example         user.example
+assert_strict sample.sample          user.sample
 assert_strict sample.local           user.local
 assert_strict sample.development     user.development
 assert_strict sample.dev             user.dev

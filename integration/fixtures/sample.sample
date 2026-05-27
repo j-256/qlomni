@@ -1,0 +1,3 @@
+#!/bin/sh
+# Template hook -- copy without the .sample suffix to activate.
+exit 0

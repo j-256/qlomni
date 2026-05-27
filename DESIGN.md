@@ -115,13 +115,14 @@ A class of file shapes that look like multi-extension cases but are well-handled
 
 UTI lookup keys on the substring after the *last* dot, so `.env.production` is looked up as extension `production`. A `user.production` declaration claims it. There's no need for any multi-extension matching machinery to reach this case; one ordinary `UTTypeTagSpecification` per suffix is enough.
 
-QLOmni declares eight of these as `user.*` UTIs conforming to `public.plain-text`: `.example`, `.local`, `.development`, `.dev`, `.production`, `.prod`, `.staging`, `.test`. Each is a `UTExportedTypeDeclaration` named `user.<extension>` (`user.example`, `user.local`, etc.). The descriptions are uniform – "Environment-variant config (`.<ext>` suffix)" – because the UTI doesn't claim to know what file shape the *variant* contains, only that the variant marker is text-shaped in practice.
+QLOmni declares these as `user.*` UTIs conforming to `public.plain-text`: `.example`, `.sample`, `.local`, `.development`, `.dev`, `.production`, `.prod`, `.staging`, `.test`. Each is a `UTExportedTypeDeclaration` named `user.<extension>` (`user.example`, `user.local`, etc.). The descriptions are uniform – "Environment-variant config (`.<ext>` suffix)" – because the UTI doesn't claim to know what file shape the *variant* contains, only that the variant marker is text-shaped in practice.
 
-### Why these eight
+### Why these
 
 The pattern is "this extension, on a file, is essentially always an environment-variant marker on a text config." Verified by checking conventions in the dotenv ecosystem (Next.js, Vite, Rails, dotenv-cli) and in tooling that uses suffix-based environment overrides (Docker Compose, `*.example` template conventions across many projects).
 
 - `.example` – template / sample copy of a config. Universal "commit this, gitignore the real one" convention.
+- `.sample` – same template-copy semantic as `.example`, just a different naming preference. Git ships hook templates this way (`pre-commit.sample`, `post-receive.sample`); also seen on `*.conf.sample`, `*.yml.sample`.
 - `.local` – machine-local override. Next.js and Vite both treat `.env.local` as the highest-priority dotenv file.
 - `.development`, `.dev` – dev-environment variant. `.development` is the canonical Next.js / Vite name; `.dev` is the common shortening that humans actually type.
 - `.production`, `.prod` – prod-environment variant. Same canonical/shortening pair.

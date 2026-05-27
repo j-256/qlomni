@@ -367,6 +367,24 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.astro</string>
+			<key>UTTypeDescription</key>
+			<string>Astro component</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+				<string>public.source-code</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>astro</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.sass</string>
 			<key>UTTypeDescription</key>
 			<string>Sass / SCSS stylesheet</string>
@@ -688,6 +706,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>example</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>user.sample</string>
+			<key>UTTypeDescription</key>
+			<string>Environment-variant config (.sample)</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sample</string>
 				</array>
 			</dict>
 		</dict>
