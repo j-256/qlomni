@@ -13,7 +13,7 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 # Override with INTEGRATION=1 or INTEGRATION=0.
 UTI_SURFACE := QLOmni/QLOmni/Info.plist QLOmniExtension/Info.plist integration/
 
-.PHONY: all build install uninstall clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported
+.PHONY: all build install uninstall clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported check-release-integration
 
 all: build
 
@@ -217,45 +217,29 @@ release:
 	fi
 	@echo "==> preflight: running unit tests"
 	@$(MAKE) test
-	@run_integration=""; \
-	prev_tag=$$(git describe --tags --abbrev=0 --match='v*' 2>/dev/null || true); \
-	case "$(INTEGRATION)" in \
-		1) run_integration=yes; reason="forced via INTEGRATION=1" ;; \
-		0) run_integration=no;  reason="skipped via INTEGRATION=0" ;; \
-		"") \
-			if [ -z "$$prev_tag" ]; then \
-				run_integration=yes; reason="first release; no previous tag to diff against"; \
-			elif [ -n "$$(git diff --name-only $$prev_tag..HEAD -- $(UTI_SURFACE))" ]; then \
-				run_integration=yes; reason="UTI surface changed since $$prev_tag"; \
-				echo "    changed:"; \
-				git diff --name-only $$prev_tag..HEAD -- $(UTI_SURFACE) | sed 's/^/      /'; \
-			else \
-				run_integration=no; reason="no UTI surface changes since $$prev_tag"; \
-			fi ;; \
-		*) echo "INTEGRATION='$(INTEGRATION)' must be 0, 1, or unset"; exit 2 ;; \
+	@INTEGRATION="$(INTEGRATION)" UTI_SURFACE="$(UTI_SURFACE)" ./tools/check-release-integration.sh; rc=$$?; \
+	case "$$rc" in \
+		0) ;; \
+		1) exit 0 ;; \
+		*) exit $$rc ;; \
 	esac; \
-	echo "==> integration tests: $$run_integration ($$reason)"; \
-	if [ "$$run_integration" = yes ]; then \
-		if [ -d "$(INSTALL_DIR)/$(APP_NAME)" ]; then \
-			existing_ver=$$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(INSTALL_DIR)/$(APP_NAME)/Contents/Info.plist" 2>/dev/null || echo "?"); \
-			existing_date=$$(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$(INSTALL_DIR)/$(APP_NAME)" 2>/dev/null || echo "?"); \
-			echo "    integration preflight will run 'make install', which replaces"; \
-			echo "    $(INSTALL_DIR)/$(APP_NAME) (currently v$$existing_ver, installed $$existing_date)"; \
-			echo "    with a fresh Release build, and clears the QuickLook cache."; \
-			if [ "$(ASSUME_YES)" != "1" ]; then \
-				printf "    Continue? [y/N] "; read ans; \
-				case "$$ans" in [yY]|[yY][eE][sS]) ;; *) echo "Aborted. Use INTEGRATION=0 to skip integration tests, or ASSUME_YES=1 to skip this prompt."; exit 1 ;; esac; \
-			else \
-				echo "    ASSUME_YES=1 set; continuing without prompt."; \
-			fi; \
+	if [ -d "$(INSTALL_DIR)/$(APP_NAME)" ]; then \
+		existing_ver=$$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(INSTALL_DIR)/$(APP_NAME)/Contents/Info.plist" 2>/dev/null || echo "?"); \
+		existing_date=$$(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$(INSTALL_DIR)/$(APP_NAME)" 2>/dev/null || echo "?"); \
+		echo "    integration preflight will run 'make install', which replaces"; \
+		echo "    $(INSTALL_DIR)/$(APP_NAME) (currently v$$existing_ver, installed $$existing_date)"; \
+		echo "    with a fresh Release build, and clears the QuickLook cache."; \
+		if [ "$(ASSUME_YES)" != "1" ]; then \
+			printf "    Continue? [y/N] "; read ans; \
+			case "$$ans" in [yY]|[yY][eE][sS]) ;; *) echo "Aborted. Use INTEGRATION=0 to skip integration tests, or ASSUME_YES=1 to skip this prompt."; exit 1 ;; esac; \
 		else \
-			echo "    integration preflight will run 'make install' (no existing $(APP_NAME) to replace)."; \
+			echo "    ASSUME_YES=1 set; continuing without prompt."; \
 		fi; \
-		if ! $(MAKE) install; then echo "install failed during integration preflight"; exit 1; fi; \
-		if ! $(MAKE) test-integration; then echo "integration tests failed"; exit 1; fi; \
-	elif [ "$(INTEGRATION)" = 0 ] && [ -n "$$prev_tag" ] && [ -n "$$(git diff --name-only $$prev_tag..HEAD -- $(UTI_SURFACE))" ]; then \
-		echo "    WARNING: UTI surface changed since $$prev_tag but integration tests are skipped."; \
-	fi
+	else \
+		echo "    integration preflight will run 'make install' (no existing $(APP_NAME) to replace)."; \
+	fi; \
+	if ! $(MAKE) install; then echo "install failed during integration preflight"; exit 1; fi; \
+	if ! $(MAKE) test-integration; then echo "integration tests failed"; exit 1; fi
 	@echo "==> bumping pbxproj to $(V)"
 	@if ! $(MAKE) version V=$(V); then \
 		echo "Bump failed; reverting pbxproj."; \
@@ -334,6 +318,13 @@ supported:
 # without a separate workflow step.
 check-supported:
 	./tools/gen-supported.sh --check
+
+# Predict whether `make release` would run integration tests right now,
+# without changing any state. Honors the same INTEGRATION env var. Exits 0
+# if integration would run, 1 if it would skip. The release: target shells
+# out to the same script for its decision, so the two stay in sync.
+check-release-integration:
+	@INTEGRATION="$(INTEGRATION)" UTI_SURFACE="$(UTI_SURFACE)" ./tools/check-release-integration.sh
 
 # Audit: report extensions QLOmni declares that also have an active claim
 # from another bundle on this machine (Apple CoreTypes, Xcode, etc.). Splits
