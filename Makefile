@@ -40,6 +40,7 @@ install: build
 	xattr -dr com.apple.quarantine $(INSTALL_DIR)/$(APP_NAME) 2>/dev/null || true
 	$(LSREGISTER) -u $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) 2>/dev/null || true
 	$(LSREGISTER) -f $(INSTALL_DIR)/$(APP_NAME)
+	pluginkit -a $(INSTALL_DIR)/$(APP_NAME)/Contents/PlugIns/QLOmniExtension.appex
 	pluginkit -e use -i dev.j-256.qlomni.QLOmniExtension || true
 	qlmanage -r
 	qlmanage -r cache
