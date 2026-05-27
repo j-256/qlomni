@@ -119,6 +119,7 @@ assert_strict sample.graphql         user.graphql
 assert_strict sample.gql             user.graphql
 assert_strict sample.err             user.err
 assert_strict sample.out             user.out
+assert_strict sample.output          user.output
 assert_strict sample.yml             public.yaml
 assert_strict sample.yaml            public.yaml
 assert_strict sample.ndjson          public.ndjson

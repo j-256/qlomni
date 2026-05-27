@@ -1,0 +1,4 @@
+$ make build
+Compiling QLOmni v1.3.0
+   Built target QLOmni
+Finished release [optimized] target(s) in 4.27s

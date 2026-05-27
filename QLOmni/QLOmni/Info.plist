@@ -222,6 +222,23 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.output</string>
+			<key>UTTypeDescription</key>
+			<string>Command output capture</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>output</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.rust</string>
 			<key>UTTypeDescription</key>
 			<string>Rust source</string>

@@ -46,6 +46,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.md` | Markdown |
 | `.ndjson` | JSON Lines |
 | `.out` | Standard output capture |
+| `.output` | Command output capture |
 | `.prod` | Environment-variant config (.prod) |
 | `.production` | Environment-variant config (.production) |
 | `.properties` | Properties file |
