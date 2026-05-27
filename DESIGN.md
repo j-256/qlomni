@@ -273,15 +273,15 @@ The new-app project template (which has been Xcode's default for years) generate
 - The **build settings** point at `QLOmni/QLOmni/Info.plist` via `INFOPLIST_FILE`, embedding it into the bundle as `Info.plist`.
 - The **synchronized group** rooted at `QLOmni/` recurses into the nested folder and auto-includes `Info.plist` in the Copy Bundle Resources phase.
 
-Both paths active simultaneously triggers the warning:
+Both paths active simultaneously triggered the warning:
 
 ```
 warning: The Copy Bundle Resources build phase contains this target's
 Info.plist file '.../QLOmni/QLOmni/Info.plist'.
 ```
 
-Apple was aware of the conflict – they added the `membershipExceptions` mechanism specifically for it, and they applied it for QLOmni's **extension** target when generating the project. But the same fix wasn't applied for the **app** target, despite both using the nested-folder template. The result is a project that warns on every build out of the box.
+Apple was aware of the conflict – they added the `membershipExceptions` mechanism specifically for it, and applied it for QLOmni's **extension** target when generating the project. But the same fix wasn't applied for the **app** target, despite both using the nested-folder template, so the project warned on every build out of the box.
 
-The fix is small (add a `PBXFileSystemSynchronizedBuildFileExceptionSet` for the app target excluding `QLOmni/Info.plist`, mirroring the one already in place for the extension), and matches what Xcode *would have* generated if the template author had been consistent.
+We added a `PBXFileSystemSynchronizedBuildFileExceptionSet` for the app target excluding `QLOmni/Info.plist`, mirroring the one already in place for the extension – matching what Xcode *would have* generated if the template author had been consistent.
 
-Flattening the nested folder (`QLOmni/QLOmni/*` → `QLOmni/*`) would also work and removes the redundancy entirely, but means rewriting `INFOPLIST_FILE` paths and Assets catalog references across pbxproj. Not worth it for a single warning.
+A more aggressive alternative is flattening the nested folder (`QLOmni/QLOmni/*` → `QLOmni/*`), which removes the redundancy entirely. It also works, but means rewriting `INFOPLIST_FILE` paths and Assets catalog references across pbxproj – not worth it for a single warning.
