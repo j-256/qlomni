@@ -66,8 +66,12 @@ verify:
 # DerivedData, trashed bundles, etc. Skips $(INSTALL_DIR)/$(APP_NAME)
 # itself so the live install is preserved. Re-registers the live install
 # at the end to repopulate clean entries.
+#
+# Pass DRY_RUN=1 to print what would be unregistered/re-registered without
+# touching Launch Services or QuickLook state.
 purge-ls:
 	@set -e; \
+	if [ "$(DRY_RUN)" = "1" ]; then echo "=== DRY RUN: no Launch Services or QuickLook state will change ==="; fi; \
 	echo "=== Stale QLOmni paths registered with Launch Services ==="; \
 	paths=$$($(LSREGISTER) -dump 2>/dev/null | awk ' \
 		/^----+$$/ { delete rec; next } \
@@ -82,18 +86,19 @@ purge-ls:
 		echo "=== Unregistering each ==="; \
 		echo "$$paths" | while IFS= read -r p; do \
 			echo "lsregister -u $$p"; \
-			$(LSREGISTER) -u "$$p" || true; \
+			[ "$(DRY_RUN)" = "1" ] || $(LSREGISTER) -u "$$p" || true; \
 		done; \
 	fi; \
 	echo "=== Re-registering live install (if present) ==="; \
 	if [ -d $(INSTALL_DIR)/$(APP_NAME) ]; then \
-		$(LSREGISTER) -f $(INSTALL_DIR)/$(APP_NAME); \
+		echo "lsregister -f $(INSTALL_DIR)/$(APP_NAME)"; \
+		[ "$(DRY_RUN)" = "1" ] || $(LSREGISTER) -f $(INSTALL_DIR)/$(APP_NAME); \
 		echo "Re-registered $(INSTALL_DIR)/$(APP_NAME)"; \
 	else \
 		echo "$(INSTALL_DIR)/$(APP_NAME) not present; skipping re-register"; \
 	fi; \
-	qlmanage -r; \
-	qlmanage -r cache
+	echo "qlmanage -r; qlmanage -r cache"; \
+	[ "$(DRY_RUN)" = "1" ] || { qlmanage -r; qlmanage -r cache; }
 
 clean:
 	rm -rf $(BUILD_DIR)
