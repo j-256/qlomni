@@ -622,6 +622,24 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.isml</string>
+			<key>UTTypeDescription</key>
+			<string>ISML template (Salesforce B2C Commerce)</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+				<string>public.source-code</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>isml</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.cjs</string>
 			<key>UTTypeDescription</key>
 			<string>CommonJS module</string>

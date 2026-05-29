@@ -1,0 +1,11 @@
+<iscontent type="text/html" charset="UTF-8" compact="true"/>
+<isdecorate template="common/layout/page">
+    <isif condition="${pdict.products.length > 0}">
+        <isloop items="${pdict.products}" var="product">
+            <h2>${product.name}</h2>
+            <isprint value="${product.price}" formatter="$#,##0.00"/>
+        </isloop>
+    <iselse/>
+        <p>${Resource.msg('no.products', 'catalog', null)}</p>
+    </isif>
+</isdecorate>

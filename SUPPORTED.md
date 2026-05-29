@@ -35,6 +35,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.hcl` | HCL configuration |
 | `.hs` | Haskell source |
 | `.ini` | Windows INI configuration |
+| `.isml` | ISML template (Salesforce B2C Commerce) |
 | `.jsonc` | JSON with comments |
 | `.jsonl` | JSON Lines |
 | `.jsx` | React JavaScript |
