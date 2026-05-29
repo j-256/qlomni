@@ -266,6 +266,8 @@ release:
 		echo "  git reset --hard HEAD~1"; \
 		exit 1; \
 	fi
+	@echo ""
+	@echo ""
 	@echo "==> pushing main + v$(V) to origin"
 	@if ! git push origin main "v$(V)"; then \
 		echo ""; \
@@ -275,7 +277,8 @@ release:
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Released v$(V). Watch CI: https://github.com/j-256/qlomni/actions"
+	@repo_url=$$(git remote get-url origin | sed -E 's|^git@github.com:|https://github.com/|; s|\.git$$||'); \
+	echo "Released v$(V). Watch CI: $$repo_url/actions?query=branch%3Av$(V)"
 
 # Move tag vX.Y.Z to current HEAD and force-push it. Use when you've already
 # released a version but need to point the tag at a different commit (e.g.
@@ -310,7 +313,8 @@ retag:
 		echo "Retry with: git push origin v$(V) --force"; \
 		exit 1; \
 	fi
-	@echo "Retagged v$(V). Watch CI: https://github.com/j-256/qlomni/actions"
+	@repo_url=$$(git remote get-url origin | sed -E 's|^git@github.com:|https://github.com/|; s|\.git$$||'); \
+	echo "Retagged v$(V). Watch CI: $$repo_url/actions?query=branch%3Av$(V)"
 
 # Regenerate SUPPORTED.md from the Info.plists. Cheap (millisecond-scale);
 # safe to run any time. The plists are canonical; SUPPORTED.md is a generated
