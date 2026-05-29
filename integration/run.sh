@@ -25,7 +25,13 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
-EXTENSION_ID="dev.j-256.qlomni.QLOmniExtension"
+APPEX_PLIST="/Applications/QLOmni.app/Contents/PlugIns/QLOmniExtension.appex/Contents/Info.plist"
+if [ ! -f "$APPEX_PLIST" ]; then
+    echo "QLOmni is not installed at /Applications/QLOmni.app."
+    echo "Run 'make install' first."
+    exit 2
+fi
+EXTENSION_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APPEX_PLIST")"
 
 pass=0
 fail=0

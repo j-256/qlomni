@@ -41,7 +41,7 @@ install: build
 	$(LSREGISTER) -u $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) 2>/dev/null || true
 	$(LSREGISTER) -f $(INSTALL_DIR)/$(APP_NAME)
 	pluginkit -a $(INSTALL_DIR)/$(APP_NAME)/Contents/PlugIns/QLOmniExtension.appex
-	pluginkit -e use -i dev.j-256.qlomni.QLOmniExtension || true
+	pluginkit -e use -i $$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" $(INSTALL_DIR)/$(APP_NAME)/Contents/PlugIns/QLOmniExtension.appex/Contents/Info.plist) || true
 	qlmanage -r
 	qlmanage -r cache
 	@echo "Installed $(APP_NAME) to $(INSTALL_DIR)"
@@ -76,7 +76,7 @@ purge-ls:
 	paths=$$($(LSREGISTER) -dump 2>/dev/null | awk ' \
 		/^----+$$/ { delete rec; next } \
 		/^path: / { p = $$0; sub(/^path: +/, "", p); sub(/ \(0x[0-9a-f]+\)$$/, "", p); rec["path"] = p } \
-		/^identifier: +(dev\.j-256\.qlomni|dev\.jklein\.qlomni)/ { \
+		/^identifier: +dev\.j-256\.qlomni/ { \
 			if ("path" in rec) print rec["path"] \
 		}' | sort -u | grep -v '^$(INSTALL_DIR)/$(APP_NAME)' || true); \
 	if [ -z "$$paths" ]; then \
@@ -113,7 +113,7 @@ uninstall:
 	paths=$$($(LSREGISTER) -dump 2>/dev/null | awk ' \
 		/^----+$$/ { delete rec; next } \
 		/^path: / { p = $$0; sub(/^path: +/, "", p); sub(/ \(0x[0-9a-f]+\)$$/, "", p); rec["path"] = p } \
-		/^identifier: +(dev\.j-256\.qlomni|dev\.jklein\.qlomni)/ { \
+		/^identifier: +dev\.j-256\.qlomni/ { \
 			if ("path" in rec) print rec["path"] \
 		}' | sort -u || true); \
 	if [ -z "$$paths" ]; then \
@@ -138,7 +138,7 @@ uninstall:
 	echo "=== Verification ==="; \
 	if [ -d $(INSTALL_DIR)/$(APP_NAME) ]; then echo "FAIL: $(INSTALL_DIR)/$(APP_NAME) still present"; exit 1; fi; \
 	leftover_pk=$$(pluginkit -m -p com.apple.quicklook.preview 2>/dev/null | grep -i qlomni || true); \
-	leftover_ls=$$($(LSREGISTER) -dump 2>/dev/null | grep -E 'identifier: +(dev\.j-256\.qlomni|dev\.jklein\.qlomni)' | sort -u || true); \
+	leftover_ls=$$($(LSREGISTER) -dump 2>/dev/null | grep 'identifier: *dev\.j-256\.qlomni' | sort -u || true); \
 	if [ -n "$$leftover_pk" ]; then echo "WARN: pluginkit still lists qlomni:"; echo "$$leftover_pk" | sed 's/^/  /'; fi; \
 	if [ -n "$$leftover_ls" ]; then echo "WARN: lsregister still has qlomni entries:"; echo "$$leftover_ls" | sed 's/^/  /'; fi; \
 	if [ -z "$$leftover_pk" ] && [ -z "$$leftover_ls" ]; then echo "(clean)"; fi; \
