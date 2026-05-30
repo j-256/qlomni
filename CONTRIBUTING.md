@@ -92,6 +92,7 @@ Key `make` targets beyond `test` and `install`:
 
 - `make build` – build only, no install. Output under `build/Build/Products/Release/`.
 - `make build VERSION=1.2.3` – build with `MARKETING_VERSION` overridden, matching what CI does.
+- `make build EXTRA_EXTS=<file>` – inject extra UTI declarations into the local bundle from a personal `ext | Description` file. Source plist isn't touched. See [README § Building with extra extensions](README.md#building-with-extra-extensions). Refused inside `make release`.
 - `make print-version` – print the current `MARKETING_VERSION` (errors if entries disagree).
 - `make purge-ls` – unregister stale Launch Services entries (see [README](README.md#install)).
 - `make clean` – remove `build/`.

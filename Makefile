@@ -20,13 +20,30 @@ all: build
 # VERSION (optional): when set, overrides MARKETING_VERSION at build time so the
 # bundle's CFBundleShortVersionString matches the release tag without needing a
 # pbxproj edit. CI sets this from the tag; locally it's empty and pbxproj wins.
+#
+# EXTRA_EXTS (optional, build-from-source only): path to a file declaring extra
+# file extensions to bake into the local bundle. See README "Building with extra
+# extensions". Validation runs before xcodebuild so a bad file fails fast; the
+# actual injection happens post-build, on the bundle's Info.plist (the source
+# plist is never modified). Re-running with a different EXTRA_EXTS (or none)
+# cleanly resets the bundle's extras since we strip user.qlomni-ext.* before
+# adding new entries.
 build:
+	@$(if $(EXTRA_EXTS),./tools/extra-exts.sh validate "$(EXTRA_EXTS)")
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) \
 		-derivedDataPath $(BUILD_DIR) \
 		ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
 		CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
 		$(if $(VERSION),MARKETING_VERSION=$(VERSION)) \
 		build
+	@bundle_plist="$(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME)/Contents/Info.plist"; \
+	if [ -n "$(EXTRA_EXTS)" ]; then \
+		./tools/extra-exts.sh apply "$(EXTRA_EXTS)" "$$bundle_plist"; \
+		codesign --force --sign - $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) >/dev/null 2>&1; \
+	else \
+		./tools/extra-exts.sh strip "$$bundle_plist" >/dev/null; \
+		codesign --force --sign - $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME) >/dev/null 2>&1; \
+	fi
 
 # Xcode's RegisterWithLaunchServices build phase registers the build-output
 # path with LS during `make build`. Without an unregister, that registration
@@ -200,6 +217,11 @@ release:
 		[0-9]*.[0-9]*.[0-9]*) ;; \
 		*) echo "V='$(V)' must be X.Y.Z (e.g. 1.2.3)"; exit 2 ;; \
 	esac
+	@if [ -n "$(EXTRA_EXTS)" ]; then \
+		echo "Refusing to release with EXTRA_EXTS set: '$(EXTRA_EXTS)'"; \
+		echo "EXTRA_EXTS is for personal local builds; the release artifact must match the committed plist."; \
+		exit 1; \
+	fi
 	@branch=$$(git symbolic-ref --short HEAD 2>/dev/null || echo "(detached)"); \
 	if [ "$$branch" != "main" ]; then \
 		echo "Refusing to release from branch '$$branch'; switch to main first."; \

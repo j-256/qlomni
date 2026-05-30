@@ -67,6 +67,26 @@ qlmanage -r && qlmanage -r cache
 
 Note that this removes both the Preview Extension *and* the UTI declarations – files that were resolving to a real UTI (e.g. `user.jsonc`) will revert to a synthetic `dyn.*` type after the next Launch Services scan, and lose preview support along with it. `public.data`-tagged files (extensionless non-executables, dotfiles like `.gitignore` – see [DESIGN.md § files tagged directly as `public.data`](DESIGN.md#files-tagged-directly-as-publicdata) for why they end up with that UTI) will also stop previewing, since they were routing through the appex's `public.data` claim rather than getting a UTI from the host plist.
 
+## Building with extra extensions
+
+If you want to preview extensions niche enough that they don't belong in the upstream release – internal-format `.foo` files, an obscure DSL only your team uses – pass `EXTRA_EXTS=<file>` to `make build` or `make install`:
+
+```sh
+make install EXTRA_EXTS=~/Documents/qlomni-extras.txt
+```
+
+The file is one entry per line, `ext | Description`, with `#` comments and blank lines ignored:
+
+```
+# personal extras
+nfo   | NFO release notes
+sigil | Sigil package source
+```
+
+Each line becomes a plain-text-conforming UTI in the local bundle, namespaced as `user.qlomni-ext.<ext>` so it can't collide with anything QLOmni ships. The committed plist isn't modified; the file lives outside the repo, persists across `git pull` / clean checkouts, and `make build` with no `EXTRA_EXTS` cleanly reverts the bundle to the shipped set. Refuses to override an extension already declared by QLOmni and refuses to run inside `make release`, so you can't accidentally taint a release artifact.
+
+This is build-from-source only – pre-built binaries from the [Releases page](https://github.com/j-256/qlomni/releases) cannot pick up local extras since UTIs are baked into the bundle at build time.
+
 ## Verify
 
 After installing, check that the Preview Extension is registered:
