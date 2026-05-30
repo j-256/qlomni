@@ -43,10 +43,21 @@ For the technical details – including why some plausible approaches don't work
 
 ## Install
 
-Requires:
+Requires macOS 12 (Monterey) or later.
 
-- macOS 12 (Monterey) or later
-- [Xcode.app](https://developer.apple.com/download/all/?q=Xcode%2e) (the full IDE, not just the Command Line Tools)
+### Pre-built (recommended)
+
+Download the latest `QLOmni.app.zip` from the [Releases page](https://github.com/j-256/qlomni/releases), unzip, and drag `QLOmni.app` into `/Applications/`.
+
+Releases are ad-hoc signed (not notarized), so on first launch Gatekeeper will block the app. Either right-click → Open the first time, or strip the quarantine attribute:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/QLOmni.app
+```
+
+### Build from source
+
+Requires [Xcode.app](https://developer.apple.com/download/all/?q=Xcode%2e) (the full IDE, not just the Command Line Tools).
 
 ```sh
 git clone https://github.com/j-256/qlomni.git
@@ -54,9 +65,9 @@ cd qlomni
 make install
 ```
 
-This builds a universal binary (arm64 + x86_64), ad-hoc signs it, copies `QLOmni.app` to `/Applications/`, registers the Preview Extension with PluginKit, and resets QuickLook so the changes take effect immediately.
+This builds a universal binary (arm64 + x86_64), ad-hoc signs it, copies `QLOmni.app` to `/Applications/`, registers the Preview Extension with PluginKit, and resets QuickLook so the changes take effect immediately. Locally-signed builds aren't subject to Gatekeeper, so no quarantine step needed.
 
-Pre-built binaries are on the [Releases page](https://github.com/j-256/qlomni/releases) – ad-hoc signed (not notarized), so on first launch Gatekeeper will block the app. Either right-click → Open the first time, or run `xattr -dr com.apple.quarantine /Applications/QLOmni.app`.
+To bake personal extensions into your local build that aren't worth shipping upstream, see [Building with extra extensions](#building-with-extra-extensions).
 
 ## Uninstall
 
@@ -109,7 +120,7 @@ If you've built and installed QLOmni multiple times, Launch Services may accumul
 make purge-ls
 ```
 
-This unregisters every QLOmni-related path Launch Services knows about *except* `/Applications/QLOmni.app`, then re-registers the live install.
+This unregisters every QLOmni-related path Launch Services knows about *except* `/Applications/QLOmni.app`, then refreshes the live install's registration. Sparing the live install during the unregister pass avoids a brief window where QuickLook has no QLOmni at all (Finder kind labels flicker, in-flight previews can fail); the final refresh ensures the live install's LS entry reflects current bundle metadata.
 
 ## Tests
 
