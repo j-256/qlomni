@@ -166,6 +166,7 @@ assert_strict sample.awk             user.awk
 assert_strict sample.sed             user.sed
 assert_strict sample.vim             user.vim
 assert_strict sample.conf            user.conf
+assert_strict sample.wsdl            user.wsdl
 # Environment-variant suffixes -- in practice always trail a real config
 # (.env.production, docker-compose.yml.example, nginx.conf.staging, etc.)
 # and never stand alone as files of their own. See DESIGN.md

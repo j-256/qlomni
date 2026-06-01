@@ -71,6 +71,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.tsx` | TypeScript source |
 | `.vim` | Vim script |
 | `.vue` | Vue single-file component |
+| `.wsdl` | WSDL (Web Services Description Language) |
 | `.yaml` | YAML configuration |
 | `.yml` | YAML configuration |
 
