@@ -2,6 +2,8 @@
 
 Background reasoning behind QLOmni's design – captured here so anyone working on QLOmni (or building something similar) doesn't have to re-derive it.
 
+> **macOS version note.** All findings below are on macOS 26 (Tahoe – Apple's 2025 renumber to align with iOS, succeeding macOS 15 Sequoia) on Apple Silicon, unless noted otherwise. Earlier versions may behave differently; later versions might too.
+
 ## What QuickLook actually does
 
 A file gets a Uniform Type Identifier (UTI) assigned by Launch Services (`mdls -name kMDItemContentType somefile.foo` shows it). QuickLook then looks for a generator (or, in modern times, a Preview Extension) that claims that UTI or one of its ancestors in the conformance tree.
@@ -10,7 +12,7 @@ A UTI can conform to multiple parents, and conformance is transitive. For exampl
 
 ## Why some files don't preview
 
-Three failure modes, in roughly increasing order of subtlety:
+Four failure modes, in roughly increasing order of subtlety:
 
 ### 1. Unknown extension → `dyn.*` UTI
 
@@ -43,15 +45,19 @@ On a Mac without those apps, the corresponding extensions fall through to case 1
 
 A subtler case: an app may *handle* a file type without *declaring* its UTI. The `Info.plist` key `CFBundleDocumentTypes` binds extensions to apps for "Open With" routing; `UTExportedTypeDeclarations` / `UTImportedTypeDeclarations` declare what the UTI itself is (and what it conforms to). Only the latter teaches Launch Services anything about the type graph. An app can list `.md` under `CFBundleDocumentTypes` – making it the default editor for the extension – without ever asserting the file is `net.daringfireball.markdown` or that it conforms to `public.plain-text`. From a UTI-resolution standpoint, that app contributes nothing, and the file still lands at `dyn.*`. As of writing (VS Code 1.120), this is the case for VS Code: it claims `.md` only via `CFBundleDocumentTypes`, with no UTI declarations of any kind. So "I have a Markdown-aware editor installed" is not a reliable proxy for "Markdown has a real UTI on this machine."
 
+### 4. Parent UTI with a preempting display bundle
+
+A custom UTI that conforms to `public.plain-text` *and* a sibling parent with its own routing preference can fail to preview, because the sibling preempts the route to `qldisplay.Text`. `public.xml` is the documented case: declaring `user.foo` as `[public.plain-text, public.xml]` makes `.foo` files refuse to preview, even though `public.plain-text` alone routes cleanly. See [Sibling-parent preemption: the `public.xml` case](#sibling-parent-preemption-the-publicxml-case) for the empirical workup, including the test against `public.json` (which has the same conformance shape as `public.xml` but does *not* break this way – the failure isn't a generic "non-plain-text sibling" rule). Practical authoring rule: **don't list `public.xml` as a sibling parent**, even when the format is XML-shaped; for other candidate siblings, test before assuming they're safe.
+
 ## The `.qlgenerator` graveyard
 
-Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugin format). Empirical findings on macOS 26 (Tahoe – Apple's 2025 renumber to align with iOS, succeeding macOS 15 Sequoia) on Apple Silicon, both ad-hoc-signed and unsigned:
+Before settling on `.appex`, we attempted to use QLStephen (`.qlgenerator` plugin format). Empirical findings, both ad-hoc-signed and unsigned:
 
 - `qlmanage -m plugins` shows only Apple's bundled `.qlgenerator` plugins. User-installed ones don't appear.
-- `lsregister -f ~/Library/QuickLook/QLStephen.qlgenerator` returns exit code -10811 ("kLSUnknownErr").
+- `lsregister -f ~/Library/QuickLook/QLStephen.qlgenerator` returns exit code -10811 (`kLSUnknownErr` – an opaque LaunchServices rejection; Apple's docs don't elaborate, but in practice it's how LS signals "this bundle shape isn't loadable" for `.qlgenerator` plugins on modern macOS).
 - `pluginkit -m -p com.apple.quicklook.preview` shows only `.appex` Preview Extensions.
 
-Conclusion: `.qlgenerator` is dead on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions; loading support has since been removed (or restricted to Apple-bundled plugins). QLOmni shares QLStephen's core idea – surface the contents of files macOS itself doesn't preview – but extends it in two ways:
+Conclusion: `.qlgenerator` is dead for third parties on modern macOS. Apple deprecated it in 10.15 in favor of Preview Extensions, and the loading path is now restricted to Apple-bundled plugins (`qlmanage -m plugins` shows them; user-installed `.qlgenerator` bundles fail to register and never run). The bundle format itself isn't gone – Apple still ships some – but nothing a third party puts in `~/Library/QuickLook/` will load. QLOmni shares QLStephen's core idea – surface the contents of files macOS itself doesn't preview – but extends it in two ways:
 
 - Built on the Preview Extension (`.appex`) API that current macOS still loads, replacing the dead `.qlgenerator` bundle format.
 - Bundles UTI declarations for common modern file types (`.jsonc`, `.code-workspace`, `.editorconfig`, `.tf`, `.graphql`, etc.), so those files get a real plain-text-conforming UTI and route through the system text generator unchanged. The named-extension category – "macOS doesn't know what `.jsonc` is" – is unreachable from a content-sniffing approach alone, since there's no path from "this file's bytes look like text" back to "rewrite the UTI assignment." Host-plist declarations are the layer that solves it.
@@ -60,15 +66,15 @@ Worth flagging on content sniffing specifically, since QLStephen leaned on it he
 
 ## How wildcard-UTI claims actually dispatch
 
-`public.data`, `public.item`, `public.content`, and a handful of other broad UTIs are flagged `is-wildcard` in `lsregister -dump` output. Whether and how `.appex` claims on these UTIs dispatch is undocumented; the empirical rule we observe:
+`public.data`, `public.item`, `public.content`, and a handful of other broad UTIs are flagged `is-wildcard` in `lsregister -dump` output. Whether and how `.appex` claims on these UTIs dispatch is undocumented; the empirical rule we observe (consistent with every case below, but not confirmed against Apple source – see the mechanism note at the end of this section):
 
-**A wildcard-UTI claim dispatches only when the file's *concrete* UTI is exactly the claimed wildcard. It does not dispatch via conformance from a more specific concrete UTI.**
+**A wildcard-UTI claim appears to dispatch only when the file's *concrete* UTI is exactly the claimed wildcard. We have not observed it dispatch via conformance from a more specific concrete UTI.**
 
-Three cases that illustrate the rule:
+Three cases that illustrate the rule – the first confirms the wildcard claim fires when expected; the next two show distinct ways it doesn't, both involving the conformance walk:
 
-- A file tagged `public.data` directly (extensionless non-executable, dotfile-with-no-further-dot) → claimed `public.data` → **dispatches**. The concrete UTI matches the claim.
-- A file tagged `dyn.ah62...` (unknown extension) → conforms to `public.data` → **does not dispatch**. The concrete UTI is the synthetic `dyn.*`, not `public.data`.
-- A file tagged `public.css` → conforms to `public.data` (and `public.text`, and `public.content`) → **does not dispatch through a wildcard claim**. The concrete UTI is `public.css`; QL routes by that, not via conformance walk to a wildcard ancestor. (`.css` files do still preview, since the appex claims `public.css` directly as a non-wildcard entry – this is what the wildcard-claim path *isn't* doing.)
+- (Hit:) A file tagged `public.data` directly (extensionless non-executable, dotfile-with-no-further-dot) → claimed `public.data` → **dispatches**. The concrete UTI matches the claim.
+- (Miss, synthetic concrete UTI:) A file tagged `dyn.ah62...` (unknown extension) → conforms to `public.data` → **does not dispatch**. The concrete UTI is the synthetic `dyn.*`, not `public.data`.
+- (Miss, named concrete UTI:) A file tagged `public.css` → conforms to `public.data` (and `public.text`, and `public.content`) → **does not dispatch through a wildcard claim**. The concrete UTI is `public.css`; QL routes by that, not via conformance walk to a wildcard ancestor. (`.css` files do still preview, since the appex claims `public.css` directly as a non-wildcard entry – this is what the wildcard-claim path *isn't* doing.)
 
 This is why broad claims work for the narrow case (files genuinely tagged with the wildcard UTI itself) but don't form a catch-all fallback. To preview a file whose concrete UTI is `dyn.*` or any non-wildcard, that specific UTI must be declared or claimed somewhere – there's no "register once, catch all unknowns" option.
 
@@ -76,7 +82,21 @@ The most likely mechanism is that QL dispatches by concrete-UTI lookup against `
 
 ## The system display bundle trap
 
-Sibling to the wildcard-UTI dispatch rule (see [How wildcard-UTI claims actually dispatch](#how-wildcard-uti-claims-actually-dispatch)), and just as undocumented: **third-party Preview Extensions cannot override UTIs that have a system display bundle.**
+A "trap" here means a SIP-protected system display bundle that **claims a UTI but refuses to render the file's actual content**, leaving QL with no path forward (the bundle can't be displaced, and the system has already decided not to consult PluginKit-registered `.appex` extensions for that UTI). The headline rule, undocumented like the [wildcard-UTI dispatch rule](#how-wildcard-uti-claims-actually-dispatch) and on similarly empirical footing: **third-party Preview Extensions cannot override a trap.**
+
+For a related-but-distinct dispatch quirk – where PluginKit *is* invoked but with a request shape we can't satisfy – see [Sibling-parent preemption: the `public.xml` case](#sibling-parent-preemption-the-publicxml-case). The mechanism in that section is not a trap in the sense above (PluginKit is consulted, just with the wrong reply contract), but the user-visible outcome is the same.
+
+Display bundles live at `/System/Library/Frameworks/QuickLookUI.framework/Versions/A/PlugIns/*.qldisplay`. The full set on macOS 26 includes `Text`, `Web`, `Web2`, `Image`, `Movie`, `Music`, `PDF`, `PDFKit`, `Contact`, `Event`, `Reminder`, `Map`, `LivePhoto`, `3D`, `Icon`, `Generic`, `Blank`. Each is a SIP-protected NSPrincipalClass-loadable bundle that QL invokes when it picks that bundle for a file's UTI. The UTI → display-bundle mapping is internal to the QL framework – it isn't exposed in any plist we can read – but the unified-logging output reliably names the bundle for a given file ("got displayBundleID com.apple.qldisplay.Movie for ..."). Capture it with:
+
+```sh
+log show --last 60s --info --debug \
+  --predicate '(senderImagePath CONTAINS "QuickLook") OR (process == "quicklookd")' \
+  --style compact
+```
+
+Run after spacebar-previewing the fixture (the unified-log buffer holds recent entries). The relevant lines mention `displayBundleID` and `Falling back on Generic preview`.
+
+Not every system display bundle is a trap. `qldisplay.Text` is the *enabling* one: it's how `public.plain-text`-conforming UTIs render, and it's exactly what we want most of QLOmni's declarations to route to. Display bundles that successfully render – Web with HTML, Text with plain text – aren't traps even if they preempt QLOmni from rendering the same file as text instead.
 
 Discovered while trying to handle `public.mpeg-2-transport-stream` (which CoreTypes assigns to all `.ts` files, including TypeScript source). Adding it to our `QLSupportedContentTypes` had no effect – our `.appex` was never consulted. The QL log showed:
 
@@ -86,13 +106,51 @@ got displayBundleID com.apple.qldisplay.Movie for <private>
 Falling back on Generic preview for: <private>
 ```
 
-QuickLook resolves the UTI through an internal **display-bundle table** (UTI → `com.apple.qldisplay.*`) that is consulted *before* PluginKit. If a system display bundle claims the UTI, QL routes there directly; if that handler bails, QL falls back to the generic placeholder, never asking PluginKit-registered `.appex` extensions.
+QuickLook resolves the UTI through this internal display-bundle table when there's a clean match. For our `.ts` case it routes to `qldisplay.Movie`, which then bails (the file isn't actually a movie), and QL falls back to the generic placeholder without consulting PluginKit-registered `.appex` extensions.
 
-Display bundles live in SIP-protected system frameworks and can't be displaced by third parties.
+**Confirmed traps**, all probed by declaring a `user.*` UTI conforming only to the candidate UTI and previewing a small text fixture:
 
-UTIs known to have system display bundles include `public.movie` and everything conforming to it (so `public.mpeg-2-transport-stream`, `public.mpeg`, `public.mpeg-4`, `public.avi`, `public.quicktime-movie`, etc.), `public.image`, `public.audio`, `public.pdf`, `public.html`, `com.apple.iwork.*`, and presumably others. We have not enumerated the full list.
+| UTI | Failure flavor | `qlmanage -p` exit |
+|---|---|---|
+| `public.movie` (and conforming sub-types: `public.mpeg-2-transport-stream`, `public.quicktime-movie`, etc.) | Quiet fall-back to Generic. Hit originally with `.ts` via `public.mpeg-2-transport-stream`. Thumbnail visibility varies by sub-UTI; see prose below the table. | 0 |
+| `public.audio` | Quiet fall-back; metadata sidebar with rasterized-text thumbnail. | 0 |
+| `public.image` | Panel shows "An error occurred with the preview of this document" banner alongside the rasterized-text thumbnail. qlmanage subprocess `Abort trap: 6`. | non-zero (SIGABRT) |
+| `com.adobe.pdf` | CoreGraphics PDF error logged to stderr ("CoreGraphics PDF has logged an error..."), system "?" placeholder icon, no thumbnail. | 0 |
+| `com.apple.iwork.pages.pages` (canonical Pages document UTI) | Quiet fall-back; "?" icon, no thumbnail; metadata sidebar shows "Pages Document". | 0 |
 
-**Implication for QLOmni:** any extension that gets tagged with a UTI claimed by a system display bundle is unrecoverable from a third-party `.appex`. `.ts` is the case we hit (CoreTypes maps `.ts → public.mpeg-2-transport-stream`, which routes to the Movie display bundle). Files with these extensions on macOS as of writing won't preview as text no matter what we declare.
+Thumbnail eligibility within a trapped family **varies by sub-UTI**, both for iWork and for `public.movie`. Within iWork: `pages.sffpages` produces a thumbnail-with-rasterized-text; `pages.pages`, `pages.template`, and `keynote.key` all show the "?" icon with no thumbnail. Within `public.movie`: the abstract UTI itself and `public.mpeg-2-transport-stream` produce a thumbnail; `public.quicktime-movie` does not. The display bundle's claim-and-refuse behavior is uniform across each family; whatever inhibits thumbnail generation is happening at the sub-UTI level in the system thumbnail extension, not in the display bundle.
+
+The flavor varies (silent fall-back, error banner, crash) but the structural outcome is the same in every case: a third-party `.appex` cannot intercept any of these paths. The system display bundle takes the call, QL does not consult PluginKit-registered extensions, and whatever the user ultimately sees comes from the display bundle's own failure path rather than from us. Some cases incidentally surface a rasterized-text thumbnail produced by the system thumbnail extension, but at thumbnail dimensions the text is too small to read comfortably. It's a per-UTI happy accident (see the `iwork.pages.*` sub-UTI variation above), not a reliable preview.
+
+**Confirmed *not* a trap:** `public.html`. The Web display bundle renders HTML cleanly when a file is tagged `public.html` directly; it successfully handles its claim rather than refusing.
+
+**Implication for QLOmni:** any extension that gets tagged with a UTI claimed by a trap display bundle is unrecoverable from a third-party `.appex`. `.ts` is the case we hit (CoreTypes maps `.ts → public.mpeg-2-transport-stream`, which routes to the Movie display bundle). Files with these extensions on macOS as of writing won't preview as text no matter what we declare.
+
+## Sibling-parent preemption: the `public.xml` case
+
+A subtler interaction with display-bundle dispatch, with hard logs to back it up: **when a `user.*` UTI lists `public.xml` as a parent (alone or alongside `public.plain-text`), preview fails.** Stripping `public.xml` from the parent list – keeping only `public.plain-text` – restores the preview. Listed for the record because it isn't obvious and the failure mode confused us when adding `.wsdl`.
+
+The matrix below probes several plausible explanations: maybe non-`public.plain-text`-conforming siblings preempt? maybe siblings with their own display bundles preempt? Both hypotheses turn out wrong. The `public.html` rows in particular are deliberate counter-examples – `public.html` *does* have a display bundle (Web), and `[public.html]` alone routes to it (renders as HTML), but paired with `public.plain-text` as a sibling the text path wins cleanly. The failure really is specific to `public.xml`.
+
+Empirical test matrix, all on macOS 26.5 with `user.wsdl` as the test UTI and the same WSDL fixture:
+
+| `UTTypeConformsTo` | Outcome |
+|---|---|
+| `[public.plain-text]` | Works. QL routes to `displayBundleID com.apple.qldisplay.Text`. |
+| `[public.plain-text, public.xml]` | **Fails.** QL invokes our `QLPreviewGenerationExtension` (via PluginKit); the framework rejects our reply with `"Context size invalid in preview generation"` / `Error Domain=QuickLookPreviewErrors Code=3 "Unable to render preview"`; QL falls back to `qldisplay.Generic`. (The "Context size invalid" string also surfaces in an unrelated scenario; see [QLPreviewReply quirks](#qlpreviewreply-quirks).) |
+| `[public.xml, public.plain-text]` | Same failure as above (order doesn't matter). |
+| `[public.xml]` | Same failure. |
+| `[public.json]` | Works. (`public.json` is the structural twin of `public.xml`: conforms only to `public.text`, claimed by Apple's bundled `Text.qlgenerator` – the system-shipped generator at `/System/Library/QuickLook/`, which still loads, unlike third-party `.qlgenerator` plugins discussed in [The `.qlgenerator` graveyard](#the-qlgenerator-graveyard) – doesn't conform to `public.plain-text`.) |
+| `[public.plain-text, public.yaml]` | Works. Renders as text. |
+| `[public.plain-text, public.toml]` | Works. Renders as text. |
+| `[public.html]` | Works. Renders *as HTML* (Web display bundle), not as text. |
+| `[public.plain-text, public.html]` | Works. Renders as text – `public.plain-text` wins, the html sibling does not preempt. |
+
+The underlying mechanism is opaque from outside the QL framework. We initially suspected "QL has a special display-bundle entry for `public.xml`" (since XML is Web-shaped), but the `public.html` result falsifies the simple version of that hypothesis: html clearly has Web routing, and yet pairs harmlessly with `public.plain-text` as a sibling. Whatever's special about `public.xml` is more specific than "has a Web display bundle." We don't have access to QL's display-bundle resolution table to investigate further. The Console log differs in a tell: for the broken case our appex is invoked and fails; for `public.html` alone the system Web bundle handles it without consulting us. So the broken case isn't "trap UTI claims and refuses" (the [system display bundle trap](#the-system-display-bundle-trap) shape) – it's a specific quirk where adding `public.xml` to a `user.*` parent list flips QL onto a PluginKit route that requests a reply shape we can't produce.
+
+Refinement to the [system display bundle trap](#the-system-display-bundle-trap): the trap-section's framing ("third-party Preview Extensions cannot override UTIs that route to a SIP-protected system display bundle when that bundle declines to render") is correct for `public.movie` (Movie bundle takes the call, refuses, never asks us). The `public.xml` case is different: PluginKit *does* get invoked, but with a request shape our appex can't satisfy, so it fails the same way for the user.
+
+Practical rule for QLOmni's plist authors: **don't add `public.xml` as a parent on a custom `user.*` UTI**, even when the format is XML-shaped. The custom UTI's `kMDItemContentTypeTree` will lose the "is XML" semantic to anything that walks UTI parents, but the file will preview cleanly as text. WSDL is XML; SVG is XML; OOXML is XML – and a previewable text plus a slightly wrong type label beats a broken preview. Other sibling UTIs are empirically safe (see matrix above) but the underlying mechanism isn't understood, so future additions should still be tested before assuming they're safe. CLAUDE.md's "Adding a new format" checklist links here from step 1 for this reason.
 
 ## Files tagged directly as `public.data`
 
@@ -105,7 +163,7 @@ Compare to `something.gitignore` (regular filename with `gitignore` as the exten
 
 Both `public.data`-tagged shapes route to the appex via the `public.data` claim in `QLSupportedContentTypes`, per the rule in [How wildcard-UTI claims actually dispatch](#how-wildcard-uti-claims-actually-dispatch). The concrete UTI on the file is `public.data`, the appex claims `public.data`, the concrete-match path applies.
 
-This is the case QLStephen handled with `file --mime` content sniffing inside its `.qlgenerator`. We don't need to sniff to *route* this case – the file is already tagged with a UTI we can claim. We do still sniff to *render* it: `public.data` catches arbitrary binary blobs as well as text, so `PreviewRenderer` runs an in-process NUL byte check and bails on binary content rather than dumping bytes into the preview.
+This is the case QLStephen (the prior-art `.qlgenerator` we discuss in [The `.qlgenerator` graveyard](#the-qlgenerator-graveyard)) handled with `file --mime` content sniffing inside its `.qlgenerator`. We don't need to sniff to *route* this case – the file is already tagged with a UTI we can claim. We do still sniff to *render* it: `public.data` catches arbitrary binary blobs as well as text, so `PreviewRenderer` runs an in-process NUL byte check and bails on binary content rather than dumping bytes into the preview.
 
 The remaining limitation is the `dyn.*` case from [§ Why some files don't preview](#why-some-files-dont-preview), case 1: an unrecognized *extension* (not an absent one) still produces an opaque per-extension synthetic UTI. The mechanism is fully addressable per-extension by adding a UTI declaration to the host plist (most of QLOmni's declarations exist for this reason); what's not addressable is a single broad-claim catch-all. Some extensions QLOmni deliberately doesn't declare because their content shape isn't reliably text – `.tmp` is the canonical example, since vim swap files and notes are text but Word autosaves, partial downloads, and similar are binary. Declaring those as plain-text would briefly try to decode binary content before falling back to the no-preview placeholder. Workaround for files we don't declare: rename or symlink with a known extension.
 
@@ -190,7 +248,7 @@ Imported declarations defer to any exported declaration of the same UTI. So if X
 
 Both keys live under the host app's `Info.plist`:
 
-- `UTExportedTypeDeclarations` – "we are the authoritative declarer of this UTI." If multiple bundles export the same UTI, last registered wins (or some non-deterministic precedence).
+- `UTExportedTypeDeclarations` – "we are the authoritative declarer of this UTI." If multiple bundles export the same UTI, the tiebreak goes through the flag-precedence ranking documented in [Extension collisions across declarers](#extension-collisions-across-declarers); among equally-flagged claims we don't know the rule. We have not seen this matter in practice for QLOmni since we only export `user.*` UTIs (which nobody else exports).
 - `UTImportedTypeDeclarations` – "this UTI exists, here's our fallback declaration. If anyone else exports it, theirs wins."
 
 QLOmni uses **exported** for `user.*` UTIs (we are the authoritative declarer of `user.jsonc`, etc., until someone else publishes a more authoritative one).
@@ -206,13 +264,31 @@ Examples QLOmni encounters:
 - `.gs` – QLOmni: `user.gs` (Google Apps Script). Xcode: `org.khronos.glsl.geometry-shader` (OpenGL geometry shader).
 - `.ts` – QLOmni imports `com.microsoft.typescript` (TypeScript). `CoreTypes` (bundled in macOS) exports `public.mpeg-2-transport-stream` (MPEG-2 video container).
 
-Launch Services breaks ties using flags on each registration. Roughly: `apple-internal trusted` > `exported trusted` > `imported trusted` > `untrusted`. Apple's own bundles (`CoreTypes`, `Xcode`) are flagged `apple-internal`, so any claim they make wins regardless of whether it's exported or imported. A third-party `exported trusted` declaration (ours) cannot win against `apple-internal`.
+Launch Services breaks ties using flags on each registration. The ranking we infer from `lsregister -dump` flag output and observed dispatch behavior – not from Apple documentation, so treat as best-effort: `apple-internal trusted` > `exported trusted` > `imported trusted` > `untrusted`. Apple's own bundles (`CoreTypes`, `Xcode`) are flagged `apple-internal`, so any claim they make wins regardless of whether it's exported or imported. A third-party `exported trusted` declaration (ours) cannot win against `apple-internal`.
+
+The flags are visible on the `flags:` line of each registration in `lsregister -dump`. Two real entries from this codebase, for reference:
+
+```text
+type id:    org.khronos.glsl.geometry-shader
+bundle:     Xcode
+flags:      active  apple-internal  imported  trusted (0000000000000045)
+tags:       .gs, .geom, .gsh, .geometry
+```
+
+```text
+type id:    user.gs
+bundle:     QLOmni
+flags:      active  exported  trusted (0000000000000051)
+tags:       .gs
+```
+
+Both claim `.gs`. Xcode wins because `apple-internal imported trusted` outranks `exported trusted` under our inferred precedence, despite the QLOmni entry being an *export* (typically considered the more authoritative claim shape). The `apple-internal` flag dominates.
 
 Practical implications for QLOmni:
 
 - **Macs without Xcode** (our primary audience): no competing claim. `.gs` resolves to `user.gs`, `.tsx` resolves to our `com.microsoft.typescript` import (and previews because `public.script` ultimately conforms to `public.plain-text` via `public.text-script`).
 - **Macs with Xcode**: `.gs` resolves to `org.khronos.glsl.geometry-shader`. The conformance chain `glsl.geometry-shader → glsl-source → public.source-code → public.plain-text` does reach plain text (Xcode declares the GLSL UTIs `apple-internal trusted`, and `public.source-code` is a CoreTypes-declared text type), so `.gs` previews as text via the system text generator either way – just with the wrong "kind" label ("OpenGL Geometry Source" instead of "Google Apps Script"). `.tsx` resolves to Xcode's `com.microsoft.typescript` (same conformance as ours), still previews.
-- **`.ts` on any modern macOS**: `CoreTypes` always wins with `public.mpeg-2-transport-stream`. Even worse, that UTI has a system display bundle (see [the system display bundle trap](#the-system-display-bundle-trap)), so we can't even handle it via `.appex`. Our `com.microsoft.typescript` import is moot in practice; kept only because removing it costs nothing and Apple could conceivably remove the MPEG-2 claim in a future macOS release.
+- **`.ts` on any modern macOS**: `CoreTypes` always wins with `public.mpeg-2-transport-stream`. Even worse, that UTI has a system display bundle (see [the system display bundle trap](#the-system-display-bundle-trap)), so we can't even handle it via `.appex`. Our `com.microsoft.typescript` import is moot in practice; kept only because the cost of keeping it is minimal (a few plist lines that LS already silently demotes), while keeping it means that if Apple ever drops the MPEG-2 claim on `.ts` in a future macOS release our import would start winning automatically without a doc or release update.
 
 To investigate a contested extension on a given machine:
 
@@ -233,11 +309,15 @@ The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get pl
 
 ## QLPreviewReply quirks
 
-- `contentSize:` should be `.zero` for HTML/plainText replies. We saw `CGSize(width: 800, height: 600)` get rejected with "Context size invalid in preview generation" even though the docs imply it's a hint. `.zero` works.
+- `contentSize:` should be `.zero` for HTML/plainText replies. We saw `CGSize(width: 800, height: 600)` get rejected with "Context size invalid in preview generation" even though the docs imply it's a hint. `.zero` works. (The same error string surfaces in a completely different scenario – when our appex is invoked via the `public.xml` sibling-parent quirk – with `contentSize: .zero` already in place. See [Sibling-parent preemption](#sibling-parent-preemption-the-publicxml-case). If you're debugging this error, check both: is `contentSize` non-zero, *or* is the file's UTI walking through `public.xml`?)
 - The data-creation block's signature in Swift is `(QLPreviewReply) throws -> Data`. Throwing from this block makes QuickLook fall through to the next handler (which is what we want for unreadable / non-text files).
 - Plain text rendering is robust: if the framework can't decode the data as a string, it shows the system "no preview" placeholder rather than rendering garbage.
 
 ## Stale PluginKit and Launch Services entries
+
+**What to do when QuickLook is dispatching to a bundle that doesn't exist on disk:** run `make purge-ls` (defined in the Makefile, which wraps the `lsregister -dump | grep | lsregister -u` cleanup recipe shown below) and then `qlmanage -r && qlmanage -r cache`. This is the symptom-cluster covered by that target.
+
+The why, for context:
 
 Renaming a bundle identifier, deleting a `.app` from `/Applications/`, or building+installing+rebuilding repeatedly can leave stale entries in the PluginKit/LaunchServices registry. These outlast the binaries on disk and can cause QuickLook to route to (or believe in) phantom Preview Extensions that no longer exist.
 
@@ -266,22 +346,11 @@ The Xcode build pipeline auto-registers the Debug build product via `lsregister 
 
 ## File-system-synchronized groups vs the new-app template
 
-Xcode 16 added *file-system-synchronized groups* (`PBXFileSystemSynchronizedRootGroup`), which auto-discover folder contents instead of requiring every file to be listed explicitly in `project.pbxproj`. Lower maintenance, less merge conflict surface – good feature.
+**What to know going forward:** both QLOmni's app target and extension target use Xcode 16's file-system-synchronized groups (`PBXFileSystemSynchronizedRootGroup`) over a nested-folder template (`QLOmni/QLOmni/*.swift, Info.plist, Assets.xcassets`). Each target has a `PBXFileSystemSynchronizedBuildFileExceptionSet` that excludes `Info.plist` from Copy Bundle Resources – without that exception, the build emits a "Copy Bundle Resources build phase contains this target's Info.plist file" warning on every run. If you add a new target or move files around, the exception set is the thing to mirror; if you find that warning, it's the thing missing.
 
-The new-app project template (which has been Xcode's default for years) generates a nested layout: target `QLOmni/` contains an inner folder `QLOmni/`, with `Info.plist`, `*.swift`, and `Assets.xcassets` inside that. Two different parts of Xcode disagree about what to do with this:
+Background on why the workaround exists, for anyone who needs to debug it deeper:
 
-- The **build settings** point at `QLOmni/QLOmni/Info.plist` via `INFOPLIST_FILE`, embedding it into the bundle as `Info.plist`.
-- The **synchronized group** rooted at `QLOmni/` recurses into the nested folder and auto-includes `Info.plist` in the Copy Bundle Resources phase.
-
-Both paths active simultaneously triggered the warning:
-
-```
-warning: The Copy Bundle Resources build phase contains this target's
-Info.plist file '.../QLOmni/QLOmni/Info.plist'.
-```
-
-Apple was aware of the conflict – they added the `membershipExceptions` mechanism specifically for it, and applied it for QLOmni's **extension** target when generating the project. But the same fix wasn't applied for the **app** target, despite both using the nested-folder template, so the project warned on every build out of the box.
-
-We added a `PBXFileSystemSynchronizedBuildFileExceptionSet` for the app target excluding `QLOmni/Info.plist`, mirroring the one already in place for the extension – matching what Xcode *would have* generated if the template author had been consistent.
-
-A more aggressive alternative is flattening the nested folder (`QLOmni/QLOmni/*` → `QLOmni/*`), which removes the redundancy entirely. It also works, but means rewriting `INFOPLIST_FILE` paths and Assets catalog references across pbxproj – not worth it for a single warning.
+- Synchronized groups auto-discover folder contents instead of listing every file explicitly in `project.pbxproj`. Lower maintenance, less merge conflict surface – generally a good thing.
+- The new-app template (Xcode's default for years) puts `Info.plist` inside the synchronized folder. Two different parts of Xcode then disagree about it: build settings point at `QLOmni/QLOmni/Info.plist` via `INFOPLIST_FILE` and embed it correctly, while the synchronized group also auto-includes the same file in Copy Bundle Resources. Both paths active triggers the warning.
+- Apple shipped `membershipExceptions` for exactly this conflict, and applied it on the *extension* target when scaffolding the project, but not the *app* target. We added the matching exception set for the app target to bring it in line with what Xcode would have generated if the template were consistent.
+- Flattening `QLOmni/QLOmni/*` → `QLOmni/*` would remove the redundancy entirely, but the cost (rewriting `INFOPLIST_FILE` paths, Assets catalog references, etc.) wasn't justified for a single warning.
