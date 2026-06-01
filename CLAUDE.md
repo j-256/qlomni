@@ -19,7 +19,7 @@ Optional:
 
 ## `qlmanage -p` is not headless
 
-It opens a QuickLook panel (same effect as pressing spacebar in Finder) and returns nothing the agent can read. Don't use it as evidence in your own reasoning; when you need a human eye on rendering, ask the user to spacebar-preview a fixture.
+It opens a QuickLook panel (same effect as pressing spacebar in Finder). Both stdout and the exit code are useless as agent signals – exit is always 0, and rendering success/failure goes only to the on-screen panel. Don't use it as evidence in your own reasoning; when you need a human eye on rendering, ask the user to spacebar-preview a fixture.
 
 For headless checks of UTI dispatch, use `mdls -name kMDItemContentType -name kMDItemContentTypeTree <file>` and `lsregister -dump`. The project ships `tools/uti.swift` and `tools/mdls-summary.sh` as wrappers; `tools/uti.swift` queries Launch Services live, so prefer it right after a registration change.
 
