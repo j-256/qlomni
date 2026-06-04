@@ -28,6 +28,22 @@ jobs:
   # Resolve which jobs should run, and what version string to stamp into the
   # build. Single source of truth so downstream jobs don't re-derive it.
   plan:
+    # Skip the duplicate main-push run that `make release` produces alongside
+    # the tag push. The release commit's message is exactly the bare version
+    # (e.g. "1.7.0"): contains a dot and no whitespace. Every other commit
+    # subject has whitespace (conventional-commits style: "feat: ...",
+    # "docs(foo): ...", etc.), so this distinguishes them without a regex
+    # (GitHub Actions expressions have none) or a separate marker. The tag
+    # run on `refs/tags/v*` does the full pipeline, so there's nothing for
+    # the main run to add. Gating at the `if:` level (rather than inside the
+    # plan script) makes the run show as `skipped` instead of `success`, so
+    # it doesn't visually duplicate the tag run in the Actions list.
+    if: >-
+      !(github.event_name == 'push'
+        && github.ref == 'refs/heads/main'
+        && contains(github.event.head_commit.message, '.')
+        && !contains(github.event.head_commit.message, ' ')
+       )
     runs-on: ubuntu-latest
     outputs:
       run_test:    ${{ steps.plan.outputs.run_test }}
