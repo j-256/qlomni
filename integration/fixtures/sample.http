@@ -1,0 +1,14 @@
+### Get a widget
+GET https://api.example.com/widgets/abc123 HTTP/1.1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Create a widget
+POST https://api.example.com/widgets HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "sku": "WIDGET-3",
+  "qty": 5
+}

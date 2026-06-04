@@ -746,6 +746,24 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.http</string>
+			<key>UTTypeDescription</key>
+			<string>HTTP request or response</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>http</string>
+					<string>rest</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.example</string>
 			<key>UTTypeDescription</key>
 			<string>Environment-variant config (.example)</string>

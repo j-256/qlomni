@@ -34,6 +34,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.hbs` | Handlebars template |
 | `.hcl` | HCL configuration |
 | `.hs` | Haskell source |
+| `.http` | HTTP request or response |
 | `.ini` | Windows INI configuration |
 | `.isml` | ISML template (Salesforce B2C Commerce) |
 | `.jsonc` | JSON with comments |
@@ -54,6 +55,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.proto` | Protocol Buffers source |
 | `.ps1` | PowerShell script |
 | `.psm1` | PowerShell script |
+| `.rest` | HTTP request or response |
 | `.rs` | Rust source |
 | `.sample` | Environment-variant config (.sample) |
 | `.sass` | Sass / SCSS stylesheet |
