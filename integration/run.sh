@@ -164,6 +164,7 @@ assert_strict sample.isml            user.isml
 assert_strict sample.cjs             user.cjs
 assert_strict sample.awk             user.awk
 assert_strict sample.sed             user.sed
+assert_strict sample.jq              user.jq
 assert_strict sample.vim             user.vim
 assert_strict sample.conf            user.conf
 assert_strict sample.wsdl            user.wsdl

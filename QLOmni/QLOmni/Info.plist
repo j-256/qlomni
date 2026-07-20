@@ -694,6 +694,24 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.jq</string>
+			<key>UTTypeDescription</key>
+			<string>jq program</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+				<string>public.script</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>jq</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.vim</string>
 			<key>UTTypeDescription</key>
 			<string>Vim script</string>

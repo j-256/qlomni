@@ -37,6 +37,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.http` | HTTP request or response |
 | `.ini` | Windows INI configuration |
 | `.isml` | ISML template (Salesforce B2C Commerce) |
+| `.jq` | jq program |
 | `.jsonc` | JSON with comments |
 | `.jsonl` | JSON Lines |
 | `.jsx` | React JavaScript |
