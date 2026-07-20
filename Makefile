@@ -4,6 +4,7 @@ CONFIG      := Release
 BUILD_DIR   := build
 APP_NAME    := QLOmni.app
 INSTALL_DIR := /Applications
+README      := README.md
 LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 # Files that affect what integration tests verify (UTI routing per declared
@@ -169,6 +170,11 @@ uninstall:
 # the MARKETING_VERSION build setting in pbxproj instead. We sed it directly,
 # then verify the replacement count matches the original line count -- guards
 # against future pbxproj format changes silently breaking the regex.
+#
+# The README's `pluginkit` verification example pins the same version (so the
+# printed output matches a fresh install); it's synced here from the single
+# `make release` bump rather than hand-edited each cut, applying the same
+# before/after guard so a format drift fails loudly instead of going stale.
 version:
 	@if [ -z "$(V)" ]; then echo "usage: make version V=<X.Y.Z>"; exit 2; fi
 	@case "$(V)" in \
@@ -185,6 +191,16 @@ version:
 		exit 1; \
 	fi; \
 	echo "Updated $$after MARKETING_VERSION line(s) to $(V)"
+	@rbefore=$$(grep -cE 'QLOmniExtension\([0-9]+\.[0-9]+\.[0-9]+\)' $(README)); \
+	if [ "$$rbefore" -eq 0 ]; then echo "no versioned QLOmniExtension example found in $(README)"; exit 1; fi; \
+	sed -i '' -E 's/QLOmniExtension\([0-9]+\.[0-9]+\.[0-9]+\)/QLOmniExtension($(V))/' $(README); \
+	rafter=$$(grep -cE "QLOmniExtension\($(V)\)" $(README)); \
+	if [ "$$rbefore" -ne "$$rafter" ]; then \
+		echo "$(README) version mismatch: $$rbefore example(s) before, $$rafter at $(V) after"; \
+		echo "$(README) may have been left inconsistent -- check git diff"; \
+		exit 1; \
+	fi; \
+	echo "Updated $$rafter $(README) version example(s) to $(V)"
 
 # Print the current MARKETING_VERSION. Errors if the 6 entries disagree --
 # `make version` keeps them in lockstep, so disagreement means a hand-edit.
