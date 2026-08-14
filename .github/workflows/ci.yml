@@ -118,7 +118,7 @@ jobs:
     if: needs.plan.outputs.run_test == 'true'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
       - name: Run unit tests
@@ -133,7 +133,7 @@ jobs:
       sha256:   ${{ steps.package.outputs.sha256 }}
       version:  ${{ steps.package.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write  # gh release create
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download zip artifact
         uses: actions/download-artifact@v8
