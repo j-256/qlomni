@@ -1,0 +1,67 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 4"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+            runner: ubuntu-latest
+          - language: swift
+            build-mode: manual
+            runner: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode
+        if: matrix.language == 'swift'
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Build Swift
+        if: matrix.build-mode == 'manual'
+        run: |
+          architecture="$(uname -m)"
+          xcodebuild \
+            -project QLOmni.xcodeproj \
+            -scheme QLOmni \
+            -configuration Debug \
+            -derivedDataPath build/codeql \
+            -destination "platform=macOS,arch=$architecture" \
+            ARCHS="$architecture" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            build
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
