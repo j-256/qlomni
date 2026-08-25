@@ -14,7 +14,7 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 # Override with INTEGRATION=1 or INTEGRATION=0.
 UTI_SURFACE := QLOmni/QLOmni/Info.plist QLOmniExtension/Info.plist integration/
 
-.PHONY: all build install uninstall clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported check-release-integration
+.PHONY: all build install uninstall clean reinstall verify test test-integration purge-ls version print-version release retag supported check-supported check-docs-cover check-release-integration
 
 all: build
 
@@ -66,10 +66,13 @@ install: build
 
 reinstall: clean install
 
-test: check-supported
+test: check-supported check-docs-cover
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug \
 		-derivedDataPath $(BUILD_DIR) \
 		test
+
+check-docs-cover:
+	./tools/check-docs-cover.sh
 
 test-integration:
 	./integration/run.sh

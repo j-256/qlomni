@@ -2,6 +2,8 @@
 
 A macOS QuickLook Preview Extension that previews the text files macOS itself doesn't.
 
+![The macOS Quick Look panel previewing an HTTP request fixture as formatted text without opening an editor](docs/screenshots/cover.png)
+
 ## What it fixes
 
 Press space on a `.txt` file and macOS shows you the contents. Press space on a few common file types and you get a generic icon and "Document – 4 bytes" instead. The most common cases:
