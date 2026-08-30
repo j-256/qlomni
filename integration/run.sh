@@ -171,6 +171,8 @@ assert_strict sample.conf            user.conf
 assert_strict sample.wsdl            user.wsdl
 assert_strict sample.http            user.http
 assert_strict sample.rest            user.http
+assert_strict sample.linq            user.linqpad-query
+assert_strict sample.bat             user.windows-batch
 # Environment-variant suffixes -- in practice always trail a real config
 # (.env.production, docker-compose.yml.example, nginx.conf.staging, etc.)
 # and never stand alone as files of their own. See DESIGN.md

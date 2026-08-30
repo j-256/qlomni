@@ -6,6 +6,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 |-----------|-------------|
 | `.astro` | Astro component |
 | `.awk` | AWK script |
+| `.bat` | Windows batch script |
 | `.cjs` | CommonJS module |
 | `.clj` | Clojure source |
 | `.cljc` | Clojure source |
@@ -45,6 +46,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.kt` | Kotlin source |
 | `.kts` | Kotlin source |
 | `.less` | Less stylesheet |
+| `.linq` | LINQPad query |
 | `.local` | Environment-variant config (.local) |
 | `.markdown` | Markdown |
 | `.md` | Markdown |

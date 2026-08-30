@@ -782,6 +782,40 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.linqpad-query</string>
+			<key>UTTypeDescription</key>
+			<string>LINQPad query</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>linq</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>user.windows-batch</string>
+			<key>UTTypeDescription</key>
+			<string>Windows batch script</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bat</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.example</string>
 			<key>UTTypeDescription</key>
 			<string>Environment-variant config (.example)</string>
