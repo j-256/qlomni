@@ -14,6 +14,7 @@
 				<string>public.yaml</string>
 				<string>public.toml</string>
 				<string>com.microsoft.ini</string>
+				<string>com.getdropbox.dropbox.dropboxignore</string>
 				<string>public.css</string>
 				<string>public.ndjson</string>
 				<string>public.data</string>

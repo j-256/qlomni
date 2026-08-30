@@ -18,6 +18,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.dart` | Dart source |
 | `.dev` | Environment-variant config (.dev) |
 | `.development` | Environment-variant config (.development) |
+| `.dropboxignore` | Dropbox ignore rules |
 | `.editorconfig` | EditorConfig file |
 | `.err` | Standard error capture |
 | `.ex` | Elixir source |

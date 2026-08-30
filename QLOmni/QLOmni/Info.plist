@@ -938,6 +938,24 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.getdropbox.dropbox.dropboxignore</string>
+			<key>UTTypeDescription</key>
+			<string>Dropbox ignore rules</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>dropboxignore</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>org.iso.sql</string>
 			<key>UTTypeDescription</key>
 			<string>SQL source file</string>

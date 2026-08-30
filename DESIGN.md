@@ -20,14 +20,17 @@ If the file's extension is not declared by *any* installed bundle, Launch Servic
 
 ### 2. UTI that doesn't conform to `public.plain-text`
 
-The system text generator (the one that previews `.txt`, `.md`, `.swift`, etc.) only claims `public.plain-text`. Some text-shaped formats have UTIs that conform to `public.text` *but not* `public.plain-text`:
+The system text generator (the one that previews `.txt`, `.md`, `.swift`, etc.) only claims `public.plain-text`. Some text-shaped formats have concrete UTIs that do not conform to it. Most conform to `public.text` directly:
 
 - `public.yaml` – conforms to `public.text` directly.
 - `public.toml` – same.
 - `com.microsoft.ini` – same.
 - `public.css` – same.
+- `public.ndjson` – same.
 
-These files have a real UTI, the file is plain text, but the system text generator declines to handle them, and no other handler claims the more general `public.text`.
+Dropbox ignore rules are more generic still: Dropbox exports `com.getdropbox.dropbox.dropboxignore` with `public.data` and `public.content` parents, not a text parent. A `rules.dropboxignore` file therefore has a real UTI and plain-text contents, but it does not route to the system text generator.
+
+In each case the file has a real UTI and plain-text contents, but the system text generator declines to handle it. QLOmni claims the concrete UTI so its Preview Extension receives the request directly.
 
 ### 3. UTI declared by an app you don't have installed
 
@@ -302,8 +305,8 @@ The integration harness (`integration/run.sh`) categorizes contested extensions 
 
 Each piece does a different job:
 
-- **Host app's UTI declarations** – make sure the file gets tagged with a real, plain-text-conforming UTI instead of `dyn.*`. This enables the *system text generator* to preview it.
-- **`.appex`'s `QLSupportedContentTypes`** – fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`, `com.microsoft.ini`, `public.css`), for UTIs that have no system preview handler at all (`public.unix-executable`), and for the wildcard `public.data` / `public.content` claims that route files tagged directly with those UTIs (see [Files tagged directly as `public.data`](#files-tagged-directly-as-publicdata)).
+- **Host app's UTI declarations** – make sure the file gets tagged with a real UTI instead of `dyn.*`. Most declarations conform to `public.plain-text` and enable the *system text generator*; fallback imports can instead mirror an ecosystem owner's canonical conformance.
+- **`.appex`'s `QLSupportedContentTypes`** – fills the gap for UTIs that exist but don't conform to `public.plain-text` (`public.yaml`, `public.toml`, `com.microsoft.ini`, `com.getdropbox.dropbox.dropboxignore`, `public.css`, `public.ndjson`), for UTIs that have no system preview handler at all (`public.unix-executable`), and for the wildcard `public.data` / `public.content` claims that route files tagged directly with those UTIs (see [Files tagged directly as `public.data`](#files-tagged-directly-as-publicdata)).
 
 The asymmetry: most extensions in our list (jsonc, jsx, properties, etc.) get plain-text-conforming UTIs via the host plist alone – no `.appex` involvement. Only the UTIs listed above need the `.appex` to handle preview directly.
 

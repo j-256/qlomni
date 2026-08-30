@@ -13,6 +13,7 @@ Press space on a `.txt` file and macOS shows you the contents. Press space on a 
 - **Files with extensions macOS doesn't recognize** – including AI-agent staples `.md`, `.jsonl`, and `.output`, plus `.jsonc`, `.har`, `.tsx`, `.editorconfig`, `.tf`, `.graphql`, common config formats, and source files for languages whose extensions aren't bundled with macOS (Rust, Go, Kotlin, etc.). See [SUPPORTED.md](SUPPORTED.md) for the full list.
 - **Environment-variant configs** – `.env.production`, `docker-compose.yml.example`, `nginx.conf.staging`, `database.yml.test`, etc. The trailing variant suffix becomes the file's extension as far as macOS UTI lookup is concerned, and QLOmni declares a UTI for each common one (`.example`, `.sample`, `.local`, `.development`, `.dev`, `.production`, `.prod`, `.staging`, `.test`). See [DESIGN.md § environment-variant suffixes](DESIGN.md#environment-variant-suffixes) for the rationale.
 - **YAML** (`.yaml`, `.yml`), **TOML** (`.toml`), **INI** (`.ini`), **CSS** (`.css`), and **NDJSON** (`.ndjson`) – have UTIs that conform to `public.text` but not `public.plain-text`. The system text generator only handles `public.plain-text`, so they fall through.
+- **Dropbox ignore rules** (`.dropboxignore`) – Dropbox's canonical UTI conforms to generic data types rather than a text type, so the system text generator skips these plain-text rule files.
 
 QLOmni handles all of these – with one notable exception.
 
@@ -38,8 +39,8 @@ If `kMDItemContentType` is a real UTI (not `dyn.*`) and `kMDItemContentTypeTree`
 
 Two pieces, both shipped in a single bundle:
 
-- A **Preview Extension** (`.appex`) that handles `public.unix-executable`, `public.yaml`, `public.toml`, `com.microsoft.ini`, `public.css`, and `public.data` / `public.content` directly – rendering each as plain text. (`public.content` is a supertype of `public.data`; both are listed for belt-and-suspenders coverage of files macOS tags with the bare wildcard.) Binary content is detected in-process via a NUL byte check and falls through to the system "no preview" placeholder rather than rendering garbage.
-- A **set of UTI declarations** for common formats macOS doesn't natively know about. Most extensions get assigned a plain-text-conforming UTI and route through the system text generator unchanged; QLOmni's role is just making sure the file *gets* a sensible UTI.
+- A **Preview Extension** (`.appex`) that directly handles Unix executables; text-shaped UTIs the system text generator skips (`public.yaml`, `public.toml`, `com.microsoft.ini`, `com.getdropbox.dropbox.dropboxignore`, `public.css`, and `public.ndjson`); and `public.data` / `public.content` – rendering each as plain text. (`public.content` is a supertype of `public.data`; both are listed for belt-and-suspenders coverage of files macOS tags with the bare wildcard.) Binary content is detected in-process via a NUL byte check and falls through to the system "no preview" placeholder rather than rendering garbage.
+- A **set of UTI declarations** for common formats macOS doesn't natively know about, plus fallback imports for identifiers defined elsewhere in the ecosystem. Most extensions get assigned a plain-text-conforming UTI and route through the system text generator unchanged; QLOmni's role is just making sure the file *gets* a sensible UTI.
 
 For the technical details – including why some plausible approaches don't work – see [DESIGN.md](DESIGN.md).
 
