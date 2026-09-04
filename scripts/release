@@ -10,20 +10,26 @@ readonly APP_RELATIVE_PATH='build/Build/Products/Release/QLOmni.app'
 readonly PROJECT_FILE='QLOmni.xcodeproj/project.pbxproj'
 readonly README_FILE='README.md'
 readonly INTEGRATION_SCRIPT_RELATIVE_PATH='tools/check-release-integration.sh'
+readonly TAP_REPOSITORY_SLUG='j-256/homebrew-tap'
+readonly TAP_CASK_RELATIVE_PATH='Casks/qlomni.rb'
+readonly TAP_AUDIT_OWNER='qlomni-release'
+readonly TAP_AUDIT_CASK="$TAP_AUDIT_OWNER/tap/qlomni"
+readonly TAP_COMMIT_PREFIX='chore(qlomni): update to '
 
 usage() {
     cat <<'EOF'
 Usage: scripts/release [options]
 
-Build and verify a notarized QLOmni artifact before publishing it.
+Build and verify a notarized QLOmni artifact, then publish the app and cask.
 
 Options:
   -V, --version X.Y.Z          Exact release version
   -p, --keychain-profile NAME  notarytool Keychain profile (default: qlomni-notary)
   -s, --signing-identity ID    Developer ID identity name or fingerprint
   -t, --team-id TEAM_ID        Expected Developer Team ID
-      --dry-run                Build a notarized artifact without changing Git or GitHub
-      --resume                 Resume publication after a local commit or tag
+  -T, --tap-directory DIR      j-256/homebrew-tap checkout (default: sibling checkout)
+      --dry-run                Build without changing Git, GitHub, or the Homebrew tap
+      --resume                 Resume app or cask publication after a local commit
   -h, --help                   Show this help
 
 Environment:
@@ -124,6 +130,265 @@ verify_artifact() {
     )
 }
 
+tap_git() {
+    git -C "$tap_directory" "$@"
+}
+
+read_cask_field() {
+    local field
+
+    field=$1
+    sed -nE "s/^[[:space:]]*$field \"([^\"]+)\"$/\1/p" "$tap_cask_path"
+}
+
+validate_cask_file() {
+    local cask_sha
+    local cask_version
+    local sha_count
+    local version_count
+
+    version_count=$(read_cask_field version | wc -l | tr -d ' ')
+    [ "$version_count" -eq 1 ] || fail "$tap_cask_path must contain exactly one version stanza"
+    sha_count=$(read_cask_field sha256 | wc -l | tr -d ' ')
+    [ "$sha_count" -eq 1 ] || fail "$tap_cask_path must contain exactly one sha256 stanza"
+
+    cask_version=$(read_cask_field version)
+    printf '%s\n' "$cask_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail "invalid cask version: $cask_version"
+    cask_sha=$(read_cask_field sha256)
+    printf '%s\n' "$cask_sha" | grep -Eq '^[0-9a-f]{64}$' || fail "invalid cask SHA-256: $cask_sha"
+}
+
+validate_tap_remote() {
+    local tap_remote
+
+    tap_remote=$(tap_git remote get-url origin 2>/dev/null) || fail "Homebrew tap has no origin remote: $tap_directory"
+    case "$tap_remote" in
+        https://github.com/"$TAP_REPOSITORY_SLUG"|\
+        https://github.com/"$TAP_REPOSITORY_SLUG".git|\
+        git@github.com:"$TAP_REPOSITORY_SLUG"|\
+        git@github.com:"$TAP_REPOSITORY_SLUG".git) ;;
+        *) fail "Homebrew tap origin is $tap_remote, expected $TAP_REPOSITORY_SLUG" ;;
+    esac
+}
+
+unexpected_tap_status() {
+    tap_git status --porcelain --untracked-files=normal | awk -v expected="$TAP_CASK_RELATIVE_PATH" '$2 != expected { print }'
+}
+
+validate_homebrew_tap_checkout() {
+    local ahead_count
+    local ahead_subject
+    local cask_version
+    local changed_paths
+    local release_mode
+    local tap_branch
+    local tap_head
+    local tap_origin
+    local tap_status
+    local unexpected_status
+
+    release_mode=$1
+
+    [ -d "$tap_directory" ] || fail "Homebrew tap checkout not found: $tap_directory"
+    tap_git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Homebrew tap path is not a Git checkout: $tap_directory"
+    validate_tap_remote
+    tap_branch=$(tap_git symbolic-ref --short HEAD 2>/dev/null || true)
+    [ -n "$tap_branch" ] || tap_branch='detached'
+    [ "$tap_branch" = 'main' ] || fail "Homebrew tap publication requires main; current branch is $tap_branch"
+    [ -f "$tap_cask_path" ] || fail "QLOmni cask not found: $tap_cask_path"
+    validate_cask_file
+
+    printf '==> Refreshing Homebrew tap origin state\n'
+    tap_git fetch origin main
+    tap_head=$(tap_git rev-parse HEAD)
+    tap_origin=$(tap_git rev-parse origin/main)
+    tap_status=$(tap_git status --porcelain --untracked-files=normal)
+    unexpected_status=$(unexpected_tap_status)
+    [ -z "$unexpected_status" ] || fail "Homebrew tap has unrelated changes; clean $tap_directory before releasing"
+    cask_version=$(read_cask_field version)
+
+    if [ "$release_mode" = 'release' ]; then
+        [ -z "$tap_status" ] || fail "Homebrew tap must be clean before starting a release: $tap_directory"
+        [ "$tap_head" = "$tap_origin" ] || fail 'Homebrew tap main must exactly match origin/main before starting a release'
+        [ "$cask_version" != "$version" ] || fail "Homebrew cask already targets $version; use release resume only for an existing matching app release"
+        return
+    fi
+
+    if [ "$tap_head" = "$tap_origin" ]; then
+        if [ -n "$tap_status" ]; then
+            [ "$cask_version" = "$version" ] || fail "incomplete Homebrew cask update targets $cask_version, expected $version"
+        fi
+        return
+    fi
+
+    if tap_git merge-base --is-ancestor origin/main HEAD; then
+        [ -z "$tap_status" ] || fail 'Homebrew tap has both an unpushed commit and working-tree changes'
+        ahead_count=$(tap_git rev-list --count origin/main..HEAD)
+        [ "$ahead_count" -eq 1 ] || fail 'Homebrew tap resume requires exactly one unpushed cask commit'
+        changed_paths=$(tap_git diff --name-only origin/main..HEAD)
+        [ "$changed_paths" = "$TAP_CASK_RELATIVE_PATH" ] || fail 'Homebrew tap unpushed commit changes paths other than the QLOmni cask'
+        ahead_subject=$(tap_git log -1 --format=%s)
+        [ "$ahead_subject" = "$TAP_COMMIT_PREFIX$version" ] || fail "unexpected Homebrew tap commit: $ahead_subject"
+        [ "$cask_version" = "$version" ] || fail "Homebrew tap commit targets $cask_version, expected $version"
+        return
+    fi
+
+    if tap_git merge-base --is-ancestor HEAD origin/main; then
+        fail "Homebrew tap main is behind origin/main; fast-forward $tap_directory, then resume"
+    fi
+    fail 'Homebrew tap main and origin/main have diverged; reconcile them, then resume'
+}
+
+update_cask_file() {
+    local checksum
+
+    checksum=$1
+    sed -i '' -E "s/^([[:space:]]*version \")[^\"]+(\")$/\1$version\2/" "$tap_cask_path"
+    sed -i '' -E "s/^([[:space:]]*sha256 \")[^\"]+(\")$/\1$checksum\2/" "$tap_cask_path"
+    validate_cask_file
+    [ "$(read_cask_field version)" = "$version" ] || fail 'Homebrew cask version update failed'
+    [ "$(read_cask_field sha256)" = "$checksum" ] || fail 'Homebrew cask checksum update failed'
+}
+
+validate_cask_release_update() {
+    local actual_cask
+    local base_cask
+    local checksum
+    local expected_cask
+
+    checksum=$1
+    base_cask=$(tap_git show "origin/main:$TAP_CASK_RELATIVE_PATH") || fail 'could not read the published QLOmni cask'
+    expected_cask=$(printf '%s\n' "$base_cask" | sed -E \
+        -e "s/^([[:space:]]*version \")[^\"]+(\")$/\1$version\2/" \
+        -e "s/^([[:space:]]*sha256 \")[^\"]+(\")$/\1$checksum\2/")
+    actual_cask=$(sed -n '1,$p' "$tap_cask_path")
+    [ "$actual_cask" = "$expected_cask" ] || fail 'Homebrew cask contains changes beyond the release version and checksum'
+}
+
+audit_homebrew_cask() (
+    local audit_link
+    local audit_link_created
+    local audit_parent
+    local audit_parent_created
+    local audit_status
+    local brew_repository
+    local cleanup_status
+
+    brew_repository=$(brew --repository)
+    [ -d "$brew_repository/Library/Taps" ] || fail "Homebrew tap directory not found below $brew_repository"
+    audit_parent="$brew_repository/Library/Taps/$TAP_AUDIT_OWNER"
+    audit_link="$audit_parent/homebrew-tap"
+    audit_parent_created='false'
+    audit_link_created='false'
+
+    cleanup_audit_link() {
+        cleanup_status=0
+        if [ "$audit_link_created" = 'true' ]; then
+            if unlink "$audit_link"; then
+                audit_link_created='false'
+            else
+                printf 'release: could not remove temporary tap link: %s\n' "$audit_link" >&2
+                cleanup_status=1
+            fi
+        fi
+        if [ "$audit_parent_created" = 'true' ]; then
+            if rmdir "$audit_parent"; then
+                audit_parent_created='false'
+            else
+                printf 'release: could not remove temporary tap directory: %s\n' "$audit_parent" >&2
+                cleanup_status=1
+            fi
+        fi
+        return "$cleanup_status"
+    }
+    trap cleanup_audit_link EXIT HUP INT TERM
+
+    [ ! -e "$audit_link" ] && [ ! -L "$audit_link" ] || fail "temporary Homebrew tap path already exists: $audit_link"
+    if [ ! -d "$audit_parent" ]; then
+        mkdir -p "$audit_parent"
+        audit_parent_created='true'
+    fi
+    ln -s "$tap_directory" "$audit_link"
+    audit_link_created='true'
+
+    printf '==> Auditing Homebrew cask\n'
+    set +e
+    HOMEBREW_NO_AUTO_UPDATE=1 brew audit --cask --strict --online "$TAP_AUDIT_CASK"
+    audit_status=$?
+    set -e
+    cleanup_status=0
+    cleanup_audit_link || cleanup_status=$?
+    trap - EXIT HUP INT TERM
+    [ "$audit_status" -eq 0 ] || return "$audit_status"
+    [ "$cleanup_status" -eq 0 ] || fail 'temporary Homebrew audit tap cleanup failed'
+)
+
+publish_homebrew_cask() {
+    local checksum
+    local expected_origin
+    local staged_paths
+    local tap_head
+    local tap_origin
+    local tap_status
+
+    # Keep the cask tied to the same verified bytes published in the GitHub Release
+    verify_artifact
+    checksum=$(awk 'NR == 1 { print $1 }' "$checksum_path")
+    printf '%s\n' "$checksum" | grep -Eq '^[0-9a-f]{64}$' || fail "invalid release checksum: $checksum"
+
+    validate_homebrew_tap_checkout 'resume'
+    tap_head=$(tap_git rev-parse HEAD)
+    tap_origin=$(tap_git rev-parse origin/main)
+    tap_status=$(tap_git status --porcelain --untracked-files=normal)
+
+    if [ "$tap_head" = "$tap_origin" ] && [ -z "$tap_status" ] && \
+        [ "$(read_cask_field version)" = "$version" ] && [ "$(read_cask_field sha256)" = "$checksum" ]; then
+        printf 'Homebrew cask already published for %s\n' "$version"
+        return
+    fi
+
+    if [ "$tap_head" = "$tap_origin" ] && [ -z "$tap_status" ]; then
+        printf '==> Updating Homebrew cask to %s\n' "$version"
+        update_cask_file "$checksum"
+    else
+        [ "$(read_cask_field version)" = "$version" ] || fail 'preserved Homebrew cask version does not match the release'
+        [ "$(read_cask_field sha256)" = "$checksum" ] || fail 'preserved Homebrew cask checksum does not match the verified artifact'
+    fi
+
+    validate_cask_release_update "$checksum"
+    [ -z "$(unexpected_tap_status)" ] || fail 'Homebrew tap gained unrelated changes during publication'
+    tap_git diff --check
+    audit_homebrew_cask
+
+    tap_git add "$TAP_CASK_RELATIVE_PATH"
+    tap_git diff --cached --check
+    staged_paths=$(tap_git diff --cached --name-only)
+    if [ -n "$staged_paths" ]; then
+        [ "$staged_paths" = "$TAP_CASK_RELATIVE_PATH" ] || fail 'Homebrew tap staged paths other than the QLOmni cask'
+        tap_git commit -m "$TAP_COMMIT_PREFIX$version" -- "$TAP_CASK_RELATIVE_PATH"
+    fi
+
+    validate_cask_release_update "$checksum"
+    [ -z "$(tap_git status --porcelain --untracked-files=normal)" ] || fail 'Homebrew tap is not clean after its release commit'
+    tap_head=$(tap_git rev-parse HEAD)
+    tap_origin=$(tap_git rev-parse origin/main)
+    if [ "$tap_head" = "$tap_origin" ]; then
+        printf 'Homebrew cask already published for %s\n' "$version"
+        return
+    fi
+
+    expected_origin=$tap_origin
+    verify_artifact
+    tap_git fetch origin main
+    tap_origin=$(tap_git rev-parse origin/main)
+    [ "$tap_origin" = "$expected_origin" ] || fail 'Homebrew tap origin advanced during release; reconcile it, then resume'
+
+    printf '==> Publishing Homebrew cask %s\n' "$version"
+    tap_git push origin HEAD:refs/heads/main
+    tap_git fetch origin main
+    [ "$(tap_git rev-parse origin/main)" = "$(tap_git rev-parse HEAD)" ] || fail 'Homebrew tap push could not be verified'
+}
+
 build_artifact() {
     mkdir -p "${release_zip%/*}"
     make build VERSION="$version"
@@ -219,16 +484,20 @@ SHA-256: \`$checksum\`"
             --generate-notes \
             --notes "$notes"
     fi
+
+    publish_homebrew_cask
 }
 
 version=''
 keychain_profile=$DEFAULT_KEYCHAIN_PROFILE
 signing_identity=$DEFAULT_SIGNING_IDENTITY
 team_id=$DEFAULT_TEAM_ID
+tap_directory=''
 mode='release'
+invocation_directory=$(pwd)
 
 if [ "$#" -gt 0 ]; then
-    _expand_short_opts "Vpst" "$@"
+    _expand_short_opts "TVpst" "$@"
     set -- "${_EXPANDED[@]}"; unset _EXPANDED
 fi
 
@@ -274,6 +543,16 @@ while [ "$#" -gt 0 ]; do
             [ -n "$team_id" ] || fail_usage '--team-id requires a value'
             shift
             ;;
+        -T|--tap-directory)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--tap-directory requires a value'
+            tap_directory=$2
+            shift 2
+            ;;
+        --tap-directory=*)
+            tap_directory=${1#*=}
+            [ -n "$tap_directory" ] || fail_usage '--tap-directory requires a value'
+            shift
+            ;;
         --dry-run)
             [ "$mode" = 'release' ] || fail_usage '--dry-run and --resume cannot be combined'
             mode='dry-run'
@@ -307,10 +586,27 @@ for command_name in awk git grep make shasum; do
 done
 if [ "$mode" != 'dry-run' ]; then
     require_command gh
+    require_command brew
 fi
 
 script_directory=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH='' cd -- "$script_directory/.." && pwd)
+if [ -z "$tap_directory" ]; then
+    repository_parent=$(dirname "$repository_root")
+    tap_directory="$repository_parent/homebrew-tap"
+else
+    case "$tap_directory" in
+        /*) ;;
+        *) tap_directory="$invocation_directory/$tap_directory" ;;
+    esac
+fi
+if [ "$mode" != 'dry-run' ]; then
+    [ -d "$tap_directory" ] || fail "Homebrew tap checkout not found: $tap_directory"
+    tap_directory=$(CDPATH='' cd -- "$tap_directory" && pwd)
+    tap_cask_path="$tap_directory/$TAP_CASK_RELATIVE_PATH"
+else
+    tap_cask_path=''
+fi
 package_script="$script_directory/package-release"
 verify_script="$script_directory/verify-release"
 integration_script="$repository_root/$INTEGRATION_SCRIPT_RELATIVE_PATH"
@@ -360,7 +656,7 @@ cleanup() {
 
     if [ "$release_commit_created" = 'true' ]; then
         printf '\nRelease stopped after the local release commit was created.\n' >&2
-        printf 'The verified artifact and any local tag were preserved.\n' >&2
+        printf 'The verified artifact, any local tag, and Homebrew tap state were preserved.\n' >&2
         printf 'Resolve the reported problem, then run:\n' >&2
         printf '  make release-resume V=%s\n' "$version" >&2
     elif [ "$release_mutation_started" = 'true' ]; then
@@ -374,13 +670,14 @@ trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 
 if [ "$mode" = 'resume' ]; then
-    gh auth status >/dev/null
-    gh repo view --json nameWithOwner >/dev/null
     current_version=$(make --no-print-directory print-version)
     [ "$current_version" = "$version" ] || fail "project version is $current_version, expected $version"
     [ "$(git log -1 --format=%s)" = "$version" ] || fail "HEAD is not the $version release commit"
     release_commit=$(git rev-parse HEAD)
     release_commit_created='true'
+    validate_homebrew_tap_checkout 'resume'
+    gh auth status >/dev/null
+    gh repo view --json nameWithOwner >/dev/null
 
     if [ -e "$release_zip" ] && [ ! -e "$checksum_path" ]; then
         fail "checksum is missing for $release_zip; move the incomplete artifact aside and rerun"
@@ -399,6 +696,7 @@ if [ "$mode" = 'resume' ]; then
     exit 0
 fi
 
+validate_homebrew_tap_checkout 'release'
 [ ! -e "$release_zip" ] || fail_usage "output already exists: $release_zip"
 [ ! -e "$checksum_path" ] || fail_usage "checksum already exists: $checksum_path"
 git fetch origin main

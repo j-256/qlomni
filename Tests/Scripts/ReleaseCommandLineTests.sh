@@ -119,6 +119,14 @@ run_command "$repository_root/scripts/release" --version=1.2
 assert_status "$EXPECTED_USAGE"
 assert_stderr_contains 'version must be X.Y.Z'
 
+run_command "$repository_root/scripts/release" --version=1.2.3 --tap-directory=
+assert_status "$EXPECTED_USAGE"
+assert_stderr_contains '--tap-directory requires a value'
+
+run_command "$repository_root/scripts/release" --version=1.2.3 -T
+assert_status "$EXPECTED_USAGE"
+assert_stderr_contains '--tap-directory requires a value'
+
 fake_app="$test_directory/Fake App.app"
 mkdir -p "$fake_app"
 

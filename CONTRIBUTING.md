@@ -37,6 +37,8 @@ xcrun notarytool history --keychain-profile qlomni-notary --output-format json
 
 Override `NOTARY_PROFILE`, `SIGNING_IDENTITY`, or `DEVELOPER_TEAM_ID` on the `make` command line if the local names differ.
 
+Official release mode also expects a clean `j-256/homebrew-tap` checkout beside the QLOmni checkout, on `main` and exactly synchronized with `origin/main`. Override its location with `HOMEBREW_TAP_DIR=/path/to/homebrew-tap`. Dry runs do not require or inspect the tap.
+
 ## Testing the complete local package gate
 
 Before publishing, exercise the same build, signing, notarization, stapling, and verification path without changing Git or GitHub:
@@ -65,20 +67,21 @@ The guarded command performs this sequence:
 6. Verify both bundle versions, arm64 and x86_64 slices, deployment targets, Developer ID signatures, hardened runtime, timestamps, entitlements, staple validity, Gatekeeper acceptance, and the SHA-256 checksum.
 7. Commit the version files and create the annotated local tag.
 8. Reverify the artifact, atomically publish `main` and the tag, reverify once more, and create the GitHub Release with the ZIP and checksum.
+9. Update the Homebrew cask to that exact version and checksum, run a strict online audit against the published asset, commit only the cask, reverify the artifact, and push the tap.
 
-No commit, tag, release, or asset is sent to GitHub before the signed artifact passes the local gate. The GitHub Release is the final publication step.
+No commit, tag, release, or asset is sent to GitHub before the signed artifact passes the local gate. The Homebrew cask is published only after the GitHub Release exists, because its online audit resolves the release asset. The command reports success only after the tap push has been verified against `origin/main`.
 
 ### Failure recovery
 
 Failures before the release commit automatically restore the version files and remove partial release outputs. Fix the reported problem and rerun `make release V=...`.
 
-Failures after the release commit preserve the verified artifact and any local tag. Do not rerun the fresh release command and do not move the tag. Resolve the network, authentication, or GitHub problem, then run:
+Failures after the release commit preserve the verified artifact, any local tag, and an exact in-progress Homebrew cask edit or commit. Do not rerun the fresh release command, move the tag, discard the cask state, or publish the cask by hand. Resolve the reported audit, network, authentication, or GitHub problem, then run:
 
 ```sh
 make release-resume V=1.2.3
 ```
 
-Resume requires the matching version commit at `HEAD`. It verifies an existing ZIP and checksum again, or rebuilds them if both are absent, then creates only the missing local tag, remote refs, Release, or assets. If only one output exists or verification fails, move the incomplete files aside for investigation and rerun resume. If remote `main` diverged, reconcile it without rewriting the release tag, then resume.
+Resume requires the matching version commit at `HEAD`. It verifies an existing ZIP and checksum again, or rebuilds them if both are absent, then creates or repairs the needed local tag, remote refs, Release assets, cask commit, and tap push. If only one output exists or verification fails, move the incomplete files aside for investigation and rerun resume. If either repository's `main` diverged, reconcile it without rewriting the release tag or cask commit, then resume.
 
 Published version tags are immutable. Cut a new version for a correction; `make retag` intentionally refuses to move a release tag.
 

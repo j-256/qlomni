@@ -9,6 +9,7 @@ LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/Laun
 NOTARY_PROFILE ?= qlomni-notary
 SIGNING_IDENTITY ?= Developer ID Application: James Klein (NJ4W6LK8LG)
 DEVELOPER_TEAM_ID ?= NJ4W6LK8LG
+HOMEBREW_TAP_DIR ?= $(abspath ../homebrew-tap)
 
 # Files that affect what integration tests verify (UTI routing per declared
 # extension). `make release` re-runs integration tests automatically when a
@@ -231,17 +232,17 @@ print-version:
 print-uti-surface:
 	@printf '%s\n' "$(UTI_SURFACE)"
 
-# Build, notarize, verify, then publish a release from this Mac
+# Build, notarize, verify, then publish the app and Homebrew cask from this Mac
 release:
-	./scripts/release --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)"
+	./scripts/release --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)" --tap-directory "$(HOMEBREW_TAP_DIR)"
 
-# Exercise the complete local package gate without changing Git or GitHub
+# Exercise the complete local package gate without changing Git, GitHub, or the tap
 release-dry-run:
-	./scripts/release --dry-run --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)"
+	./scripts/release --dry-run --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)" --tap-directory "$(HOMEBREW_TAP_DIR)"
 
 # Resume only the missing publication steps after revalidating local bytes
 release-resume:
-	./scripts/release --resume --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)"
+	./scripts/release --resume --version "$(V)" --keychain-profile "$(NOTARY_PROFILE)" --signing-identity "$(SIGNING_IDENTITY)" --team-id "$(DEVELOPER_TEAM_ID)" --tap-directory "$(HOMEBREW_TAP_DIR)"
 
 # Install the candidate and exercise UTI routing when the release guard asks
 release-integration:
