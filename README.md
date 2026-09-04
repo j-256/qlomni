@@ -106,7 +106,7 @@ pluginkit -m -p com.apple.quicklook.preview | grep qlomni
 Should print:
 
 ```
-+    dev.j-256.qlomni.QLOmniExtension(1.10.0)
++    dev.j-256.qlomni.QLOmniExtension(1.10.1)
 ```
 
 The leading `+` means it's enabled. Then test against any of the formats listed above.
