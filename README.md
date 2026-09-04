@@ -74,6 +74,15 @@ To bake personal extensions into your local build that aren't worth shipping ups
 
 ## Uninstall
 
+If you installed QLOmni with Homebrew:
+
+```sh
+brew uninstall --cask qlomni
+qlmanage -r && qlmanage -r cache
+```
+
+For a manually installed or source-built copy:
+
 ```sh
 rm -rf /Applications/QLOmni.app
 qlmanage -r && qlmanage -r cache
