@@ -50,13 +50,7 @@ Requires macOS 12 (Monterey) or later.
 
 ### Pre-built (recommended)
 
-Download the latest `QLOmni.app.zip` from the [Releases page](https://github.com/j-256/qlomni/releases), unzip, and drag `QLOmni.app` into `/Applications/`.
-
-Releases are ad-hoc signed (not notarized), so on first launch Gatekeeper will block the app. Either right-click → Open the first time, or strip the quarantine attribute:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/QLOmni.app
-```
+Download `QLOmni-<version>.zip` and its `.sha256` file from the [Releases page](https://github.com/j-256/qlomni/releases). Verify the download with `shasum -a 256 -c QLOmni-<version>.zip.sha256`, unzip it, and drag `QLOmni.app` into `/Applications/`. Official release builds are universal, Developer ID signed, notarized by Apple, and stapled for offline Gatekeeper validation. Workflow artifacts labeled `adhoc-dry-run` are diagnostic CI builds, not official releases.
 
 ### Build from source
 
@@ -162,7 +156,7 @@ Two helpers under `tools/` for poking at how the system resolves a given extensi
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run tests, cut a release, and use the CI workflow's manual modes (test / dry-run / release).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run tests, exercise the local notarized package gate, cut or resume a guarded release, and use CI's secretless test and dry-run modes.
 
 ## License
 

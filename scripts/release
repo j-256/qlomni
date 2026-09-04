@@ -1,0 +1,443 @@
+#!/bin/bash
+
+set -eu
+
+readonly EXIT_USAGE=2
+readonly DEFAULT_KEYCHAIN_PROFILE='qlomni-notary'
+readonly DEFAULT_SIGNING_IDENTITY='Developer ID Application: James Klein (NJ4W6LK8LG)'
+readonly DEFAULT_TEAM_ID='NJ4W6LK8LG'
+readonly APP_RELATIVE_PATH='build/Build/Products/Release/QLOmni.app'
+readonly PROJECT_FILE='QLOmni.xcodeproj/project.pbxproj'
+readonly README_FILE='README.md'
+readonly INTEGRATION_SCRIPT_RELATIVE_PATH='tools/check-release-integration.sh'
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/release [options]
+
+Build and verify a notarized QLOmni artifact before publishing it.
+
+Options:
+  -V, --version X.Y.Z          Exact release version
+  -p, --keychain-profile NAME  notarytool Keychain profile (default: qlomni-notary)
+  -s, --signing-identity ID    Developer ID identity name or fingerprint
+  -t, --team-id TEAM_ID        Expected Developer Team ID
+      --dry-run                Build a notarized artifact without changing Git or GitHub
+      --resume                 Resume publication after a local commit or tag
+  -h, --help                   Show this help
+
+Environment:
+  ASSUME_YES=1                 Skip the local integration-test install prompt
+  INTEGRATION=0|1              Skip or force release integration tests
+  EXTRA_EXTS                   Must be unset because releases use committed UTIs
+
+The Apple app-specific password is read only by notarytool from the named
+Keychain profile. This command never accepts it through the environment.
+
+Exit status:
+  0 success, 1 release failure, 2 usage or precondition error
+EOF
+}
+
+fail_usage() {
+    printf 'release: %s\n' "$1" >&2
+    printf 'Try release --help for usage.\n' >&2
+    exit "$EXIT_USAGE"
+}
+
+fail() {
+    printf 'release: %s\n' "$1" >&2
+    exit 1
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        fail "required command not found: $1"
+    fi
+}
+
+_expand_short_opts() {
+    # $1 = string of short-opt letters that take a value (e.g. "nXHd"); "" for flag-only scripts
+    # $2..$N = "$@"
+    # Populates _EXPANDED; caller does: set -- "${_EXPANDED[@]}"; unset _EXPANDED
+    local value_opts="$1"; shift
+    _EXPANDED=()
+    local passthru=""
+    local arg
+    local rest
+    local c
+    for arg in "$@"; do
+        if [ -n "$passthru" ]; then _EXPANDED+=("$arg"); continue; fi
+        case "$arg" in
+            --)       passthru=1; _EXPANDED+=("$arg") ;;
+            --*|-|"") _EXPANDED+=("$arg") ;;
+            -[a-zA-Z]?*)
+                rest="${arg#-}"
+                while [ -n "$rest" ]; do
+                    c="${rest%"${rest#?}"}"; rest="${rest#?}"
+                    _EXPANDED+=("-$c")
+                    case "$value_opts" in *"$c"*)
+                        [ -n "$rest" ] && _EXPANDED+=("$rest")
+                        rest="" ;;
+                    esac
+                done ;;
+            *)        _EXPANDED+=("$arg") ;;
+        esac
+    done
+}
+
+run_release_tests() {
+    local integration_status
+    local uti_surface
+
+    printf '==> Running release tests\n'
+    make test
+
+    uti_surface=$(make --no-print-directory print-uti-surface)
+
+    set +e
+    INTEGRATION="${INTEGRATION:-}" UTI_SURFACE="$uti_surface" "$integration_script"
+    integration_status=$?
+    set -e
+
+    case "$integration_status" in
+        0) make release-integration ;;
+        1) ;;
+        *) fail "integration-test decision failed with status $integration_status" ;;
+    esac
+}
+
+verify_artifact() {
+    local checksum_directory
+    local checksum_name
+
+    "$verify_script" \
+        --team-id "$team_id" \
+        --expected-version "$version" \
+        "$release_zip"
+
+    checksum_directory=${checksum_path%/*}
+    checksum_name=${checksum_path##*/}
+    (
+        cd "$checksum_directory"
+        shasum -a 256 -c "$checksum_name"
+    )
+}
+
+build_artifact() {
+    mkdir -p "${release_zip%/*}"
+    make build VERSION="$version"
+    "$package_script" \
+        --app "$APP_RELATIVE_PATH" \
+        --output "$release_zip" \
+        --keychain-profile "$keychain_profile" \
+        --signing-identity "$signing_identity" \
+        --team-id "$team_id" \
+        --expected-version "$version"
+    verify_artifact
+}
+
+remote_tag_commit() {
+    local listing
+    local peeled
+    local direct
+
+    listing=$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}") || return 2
+    [ -n "$listing" ] || return 1
+    peeled=$(printf '%s\n' "$listing" | awk '$2 ~ /\^\{\}$/ { print $1; exit }')
+    direct=$(printf '%s\n' "$listing" | awk '$2 !~ /\^\{\}$/ { print $1; exit }')
+    if [ -n "$peeled" ]; then
+        printf '%s\n' "$peeled"
+    else
+        printf '%s\n' "$direct"
+    fi
+}
+
+ensure_local_tag() {
+    local tagged_commit
+
+    if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+        tagged_commit=$(git rev-list -n 1 "$tag")
+        [ "$tagged_commit" = "$release_commit" ] || fail "$tag points at $tagged_commit, expected $release_commit"
+        return
+    fi
+
+    printf '==> Creating annotated tag %s\n' "$tag"
+    git tag -a "$tag" -m "$version"
+}
+
+publish_release() {
+    local origin_tag_commit
+    local remote_tag_status
+    local checksum
+    local notes
+
+    # This is the final local gate before any remote mutation
+    verify_artifact
+    ensure_local_tag
+
+    printf '==> Refreshing origin state\n'
+    git fetch origin main
+
+    origin_tag_commit=''
+    set +e
+    origin_tag_commit=$(remote_tag_commit)
+    remote_tag_status=$?
+    set -e
+    if [ "$remote_tag_status" -eq 0 ]; then
+        [ "$origin_tag_commit" = "$release_commit" ] || fail "$tag on origin points at $origin_tag_commit, expected $release_commit"
+        git merge-base --is-ancestor "$release_commit" origin/main || fail "$tag is remote but its release commit is not on origin/main"
+    elif [ "$remote_tag_status" -eq 2 ]; then
+        fail "could not inspect $tag on origin"
+    elif git merge-base --is-ancestor "$release_commit" origin/main; then
+        printf '==> Publishing %s\n' "$tag"
+        git push origin "refs/tags/$tag:refs/tags/$tag"
+    elif git merge-base --is-ancestor origin/main "$release_commit"; then
+        printf '==> Atomically publishing main and %s\n' "$tag"
+        git push --atomic origin \
+            "$release_commit:refs/heads/main" \
+            "refs/tags/$tag:refs/tags/$tag"
+    else
+        fail 'main and origin/main have diverged; reconcile them, then rerun make release-resume'
+    fi
+
+    # Recheck the same local bytes immediately before creating or repairing the release
+    verify_artifact
+    checksum=$(awk 'NR == 1 { print $1 }' "$checksum_path")
+    notes="QLOmni $version is Developer ID signed and notarized by Apple.
+
+SHA-256: \`$checksum\`"
+
+    if gh release view "$tag" >/dev/null 2>&1; then
+        printf '==> Repairing assets on existing GitHub Release %s\n' "$tag"
+        gh release upload "$tag" "$release_zip" "$checksum_path" --clobber
+    else
+        printf '==> Creating GitHub Release %s\n' "$tag"
+        gh release create "$tag" "$release_zip" "$checksum_path" \
+            --verify-tag \
+            --title "$tag" \
+            --generate-notes \
+            --notes "$notes"
+    fi
+}
+
+version=''
+keychain_profile=$DEFAULT_KEYCHAIN_PROFILE
+signing_identity=$DEFAULT_SIGNING_IDENTITY
+team_id=$DEFAULT_TEAM_ID
+mode='release'
+
+if [ "$#" -gt 0 ]; then
+    _expand_short_opts "Vpst" "$@"
+    set -- "${_EXPANDED[@]}"; unset _EXPANDED
+fi
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -V|--version)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--version requires a value'
+            version=$2
+            shift 2
+            ;;
+        --version=*)
+            version=${1#*=}
+            [ -n "$version" ] || fail_usage '--version requires a value'
+            shift
+            ;;
+        -p|--keychain-profile)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--keychain-profile requires a value'
+            keychain_profile=$2
+            shift 2
+            ;;
+        --keychain-profile=*)
+            keychain_profile=${1#*=}
+            [ -n "$keychain_profile" ] || fail_usage '--keychain-profile requires a value'
+            shift
+            ;;
+        -s|--signing-identity)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--signing-identity requires a value'
+            signing_identity=$2
+            shift 2
+            ;;
+        --signing-identity=*)
+            signing_identity=${1#*=}
+            [ -n "$signing_identity" ] || fail_usage '--signing-identity requires a value'
+            shift
+            ;;
+        -t|--team-id)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--team-id requires a value'
+            team_id=$2
+            shift 2
+            ;;
+        --team-id=*)
+            team_id=${1#*=}
+            [ -n "$team_id" ] || fail_usage '--team-id requires a value'
+            shift
+            ;;
+        --dry-run)
+            [ "$mode" = 'release' ] || fail_usage '--dry-run and --resume cannot be combined'
+            mode='dry-run'
+            shift
+            ;;
+        --resume)
+            [ "$mode" = 'release' ] || fail_usage '--dry-run and --resume cannot be combined'
+            mode='resume'
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            [ "$#" -eq 0 ] || fail_usage "unexpected argument: $1"
+            ;;
+        -*) fail_usage "unknown option: $1" ;;
+        *) fail_usage "unexpected argument: $1" ;;
+    esac
+done
+
+[ -n "$version" ] || fail_usage '--version is required'
+printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail_usage "version must be X.Y.Z: $version"
+[ "$signing_identity" != '-' ] || fail_usage 'ad-hoc signing is not allowed for releases'
+[ -z "${EXTRA_EXTS:-}" ] || fail_usage 'EXTRA_EXTS must be unset for releases'
+
+for command_name in awk git grep make shasum; do
+    require_command "$command_name"
+done
+if [ "$mode" != 'dry-run' ]; then
+    require_command gh
+fi
+
+script_directory=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(CDPATH='' cd -- "$script_directory/.." && pwd)
+package_script="$script_directory/package-release"
+verify_script="$script_directory/verify-release"
+integration_script="$repository_root/$INTEGRATION_SCRIPT_RELATIVE_PATH"
+tag="v$version"
+
+[ -x "$package_script" ] || fail "packaging script is not executable: $package_script"
+[ -x "$verify_script" ] || fail "verification script is not executable: $verify_script"
+[ -x "$integration_script" ] || fail "integration decision script is not executable: $integration_script"
+
+cd "$repository_root"
+
+[ -z "$(git status --porcelain --untracked-files=normal)" ] || fail 'working tree must be clean, including untracked files'
+
+if [ "$mode" = 'dry-run' ]; then
+    release_zip="$repository_root/build/releases/dry-run/QLOmni-$version.zip"
+    checksum_path="$release_zip.sha256"
+    [ ! -e "$release_zip" ] || fail_usage "output already exists: $release_zip"
+    [ ! -e "$checksum_path" ] || fail_usage "checksum already exists: $checksum_path"
+    dry_run_completed='false'
+    trap 'if [ "$dry_run_completed" = "false" ]; then rm -f "$release_zip" "$checksum_path"; fi' EXIT
+    trap 'exit 130' HUP INT TERM
+    run_release_tests
+    build_artifact
+    dry_run_completed='true'
+    printf 'Dry run complete; Git and GitHub were not changed\n'
+    printf '%s\n%s\n' "$release_zip" "$checksum_path"
+    exit 0
+fi
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+[ "$branch" = 'main' ] || fail "release publication requires main; current branch is ${branch:-detached}"
+
+release_zip="$repository_root/build/releases/QLOmni-$version.zip"
+checksum_path="$release_zip.sha256"
+release_commit=''
+release_mutation_started='false'
+release_commit_created='false'
+completed='false'
+
+cleanup() {
+    local status
+
+    status=$?
+    if [ "$completed" = 'true' ]; then
+        return
+    fi
+
+    if [ "$release_commit_created" = 'true' ]; then
+        printf '\nRelease stopped after the local release commit was created.\n' >&2
+        printf 'The verified artifact and any local tag were preserved.\n' >&2
+        printf 'Resolve the reported problem, then run:\n' >&2
+        printf '  make release-resume V=%s\n' "$version" >&2
+    elif [ "$release_mutation_started" = 'true' ]; then
+        git restore --source=HEAD --staged --worktree -- "$PROJECT_FILE" "$README_FILE" >/dev/null 2>&1 || true
+        rm -f "$release_zip" "$checksum_path"
+        printf '\nRelease failed before its commit; version files and release outputs were restored.\n' >&2
+    fi
+    return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
+
+if [ "$mode" = 'resume' ]; then
+    gh auth status >/dev/null
+    gh repo view --json nameWithOwner >/dev/null
+    current_version=$(make --no-print-directory print-version)
+    [ "$current_version" = "$version" ] || fail "project version is $current_version, expected $version"
+    [ "$(git log -1 --format=%s)" = "$version" ] || fail "HEAD is not the $version release commit"
+    release_commit=$(git rev-parse HEAD)
+    release_commit_created='true'
+
+    if [ -e "$release_zip" ] && [ ! -e "$checksum_path" ]; then
+        fail "checksum is missing for $release_zip; move the incomplete artifact aside and rerun"
+    fi
+    if [ ! -e "$release_zip" ] && [ -e "$checksum_path" ]; then
+        fail "artifact is missing for $checksum_path; move the orphan checksum aside and rerun"
+    fi
+    if [ -e "$release_zip" ]; then
+        verify_artifact
+    else
+        build_artifact
+    fi
+    publish_release
+    completed='true'
+    printf 'Released %s\n' "$tag"
+    exit 0
+fi
+
+[ ! -e "$release_zip" ] || fail_usage "output already exists: $release_zip"
+[ ! -e "$checksum_path" ] || fail_usage "checksum already exists: $checksum_path"
+git fetch origin main
+git merge-base --is-ancestor origin/main HEAD || fail 'origin/main is not an ancestor of HEAD; reconcile main before releasing'
+git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null && fail "$tag already exists locally; use make release-resume only for its matching release commit"
+set +e
+remote_tag_commit >/dev/null
+remote_tag_status=$?
+set -e
+if [ "$remote_tag_status" -eq 0 ]; then
+    fail "$tag already exists on origin"
+fi
+if [ "$remote_tag_status" -eq 2 ]; then
+    fail "could not inspect $tag on origin"
+fi
+gh auth status >/dev/null
+gh repo view --json nameWithOwner >/dev/null
+if gh release view "$tag" >/dev/null 2>&1; then
+    fail "GitHub Release $tag already exists"
+fi
+
+run_release_tests
+release_mutation_started='true'
+make version V="$version"
+build_artifact
+
+unexpected_paths=$(git status --porcelain --untracked-files=normal | awk '$2 != "QLOmni.xcodeproj/project.pbxproj" && $2 != "README.md" { print }')
+if [ -n "$unexpected_paths" ]; then
+    printf 'release: release preparation changed unexpected paths:\n%s\n' "$unexpected_paths" >&2
+    exit 1
+fi
+git diff --check
+git add "$PROJECT_FILE" "$README_FILE"
+git diff --cached --quiet && fail 'version update produced no commit changes'
+git commit -m "$version" -- "$PROJECT_FILE" "$README_FILE"
+release_commit=$(git rev-parse HEAD)
+release_commit_created='true'
+
+ensure_local_tag
+publish_release
+completed='true'
+printf 'Released %s\n' "$tag"

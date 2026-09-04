@@ -1,0 +1,343 @@
+#!/bin/bash
+
+set -eu
+
+readonly EXIT_USAGE=2
+readonly EXIT_DEPENDENCY=3
+readonly DEFAULT_APP='build/Build/Products/Release/QLOmni.app'
+readonly APP_ENTITLEMENTS='Support/QLOmni.entitlements'
+readonly EXTENSION_ENTITLEMENTS='Support/QLOmniExtension.entitlements'
+readonly EXTENSION_RELATIVE_PATH='Contents/PlugIns/QLOmniExtension.appex'
+readonly NOTARY_TIMEOUT='30m'
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/package-release [options]
+
+Sign, notarize, staple, verify, and package a QLOmni release ZIP.
+
+Options:
+  -a, --app APP                App path (default: Xcode Release build)
+  -o, --output ZIP             Final ZIP path (default: QLOmni-<version>.zip)
+  -p, --keychain-profile NAME  notarytool Keychain profile
+  -s, --signing-identity ID    Developer ID identity name or fingerprint
+  -t, --team-id TEAM_ID        Expected Developer Team ID
+  -V, --expected-version X.Y.Z Expected app and extension version
+  -h, --help                   Show this help
+
+Dependencies:
+  macOS with codesign, ditto, plutil, security, shasum, and xcrun notarytool
+  and stapler; NAME must already exist in the login Keychain and
+  scripts/verify-release documents verification dependencies
+
+Exit status:
+  0 success, 1 release failure, 2 usage or precondition error,
+  3 missing dependency
+EOF
+}
+
+fail_usage() {
+    printf 'package-release: %s\n' "$1" >&2
+    printf 'Try package-release --help for usage.\n' >&2
+    exit "$EXIT_USAGE"
+}
+
+fail() {
+    printf 'package-release: %s\n' "$1" >&2
+    exit 1
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        printf 'package-release: required command not found: %s\n' "$1" >&2
+        exit "$EXIT_DEPENDENCY"
+    fi
+}
+
+_expand_short_opts() {
+    # $1 = string of short-opt letters that take a value (e.g. "nXHd"); "" for flag-only scripts
+    # $2..$N = "$@"
+    # Populates _EXPANDED; caller does: set -- "${_EXPANDED[@]}"; unset _EXPANDED
+    local value_opts="$1"; shift
+    _EXPANDED=()
+    local passthru=""
+    local arg
+    local rest
+    local c
+    for arg in "$@"; do
+        if [ -n "$passthru" ]; then _EXPANDED+=("$arg"); continue; fi
+        case "$arg" in
+            --)       passthru=1; _EXPANDED+=("$arg") ;;
+            --*|-|"") _EXPANDED+=("$arg") ;;
+            -[a-zA-Z]?*)
+                rest="${arg#-}"
+                while [ -n "$rest" ]; do
+                    c="${rest%"${rest#?}"}"; rest="${rest#?}"
+                    _EXPANDED+=("-$c")
+                    case "$value_opts" in *"$c"*)
+                        [ -n "$rest" ] && _EXPANDED+=("$rest")
+                        rest="" ;;
+                    esac
+                done ;;
+            *)        _EXPANDED+=("$arg") ;;
+        esac
+    done
+}
+
+app_argument=''
+output_argument=''
+keychain_profile=''
+signing_identity=''
+team_id=''
+expected_version=''
+
+if [ "$#" -gt 0 ]; then
+    _expand_short_opts "aopstV" "$@"
+    set -- "${_EXPANDED[@]}"; unset _EXPANDED
+fi
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -a|--app)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--app requires a value'
+            app_argument=$2
+            shift 2
+            ;;
+        --app=*)
+            app_argument=${1#*=}
+            [ -n "$app_argument" ] || fail_usage '--app requires a value'
+            shift
+            ;;
+        -o|--output)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--output requires a value'
+            output_argument=$2
+            shift 2
+            ;;
+        --output=*)
+            output_argument=${1#*=}
+            [ -n "$output_argument" ] || fail_usage '--output requires a value'
+            shift
+            ;;
+        -p|--keychain-profile)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--keychain-profile requires a value'
+            keychain_profile=$2
+            shift 2
+            ;;
+        --keychain-profile=*)
+            keychain_profile=${1#*=}
+            [ -n "$keychain_profile" ] || fail_usage '--keychain-profile requires a value'
+            shift
+            ;;
+        -s|--signing-identity)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--signing-identity requires a value'
+            signing_identity=$2
+            shift 2
+            ;;
+        --signing-identity=*)
+            signing_identity=${1#*=}
+            [ -n "$signing_identity" ] || fail_usage '--signing-identity requires a value'
+            shift
+            ;;
+        -t|--team-id)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--team-id requires a value'
+            team_id=$2
+            shift 2
+            ;;
+        --team-id=*)
+            team_id=${1#*=}
+            [ -n "$team_id" ] || fail_usage '--team-id requires a value'
+            shift
+            ;;
+        -V|--expected-version)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--expected-version requires a value'
+            expected_version=$2
+            shift 2
+            ;;
+        --expected-version=*)
+            expected_version=${1#*=}
+            [ -n "$expected_version" ] || fail_usage '--expected-version requires a value'
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            [ "$#" -eq 0 ] || fail_usage "unexpected argument: $1"
+            ;;
+        -*)
+            fail_usage "unknown option: $1"
+            ;;
+        *)
+            fail_usage "unexpected argument: $1"
+            ;;
+    esac
+done
+
+[ -n "$keychain_profile" ] || fail_usage '--keychain-profile is required'
+[ -n "$signing_identity" ] || fail_usage '--signing-identity is required'
+[ "$signing_identity" != '-' ] || fail_usage 'ad-hoc signing is not allowed for releases'
+[ -n "$team_id" ] || fail_usage '--team-id is required'
+[ -n "$expected_version" ] || fail_usage '--expected-version is required'
+
+for command_name in codesign ditto mktemp plutil security shasum xcrun; do
+    require_command "$command_name"
+done
+
+script_directory=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(CDPATH='' cd -- "$script_directory/.." && pwd)
+
+if [ -n "$app_argument" ]; then
+    case "$app_argument" in
+        /*) app_path=$app_argument ;;
+        *) app_path="$repository_root/$app_argument" ;;
+    esac
+else
+    app_path="$repository_root/$DEFAULT_APP"
+fi
+
+[ -d "$app_path" ] || fail "app not found: $app_path"
+
+app_info="$app_path/Contents/Info.plist"
+[ -f "$app_info" ] || fail "app Info.plist not found: $app_info"
+version=$(plutil -extract CFBundleShortVersionString raw -o - "$app_info") || fail 'app version is missing or invalid'
+[ "$version" = "$expected_version" ] || fail "app version is $version, expected $expected_version"
+
+if [ -n "$output_argument" ]; then
+    case "$output_argument" in
+        /*) output_path=$output_argument ;;
+        *) output_path="$repository_root/$output_argument" ;;
+    esac
+else
+    output_path="$repository_root/QLOmni-$version.zip"
+fi
+
+case "$output_path" in
+    *.zip) ;;
+    *) fail_usage '--output must end in .zip' ;;
+esac
+
+checksum_path="$output_path.sha256"
+[ ! -e "$output_path" ] || fail_usage "output already exists: $output_path"
+[ ! -e "$checksum_path" ] || fail_usage "checksum already exists: $checksum_path"
+[ -d "${output_path%/*}" ] || fail_usage "output directory not found: ${output_path%/*}"
+
+app_entitlements="$repository_root/$APP_ENTITLEMENTS"
+extension_entitlements="$repository_root/$EXTENSION_ENTITLEMENTS"
+extension_path="$app_path/$EXTENSION_RELATIVE_PATH"
+verify_script="$script_directory/verify-release"
+
+[ -d "$extension_path" ] || fail "extension not found: $extension_path"
+[ -f "$app_entitlements" ] || fail "entitlements not found: $app_entitlements"
+[ -f "$extension_entitlements" ] || fail "entitlements not found: $extension_entitlements"
+[ -x "$verify_script" ] || fail "verification script is not executable: $verify_script"
+
+identity_listing=$(security find-identity -v -p codesigning) || fail 'could not read code-signing identities'
+case "$identity_listing" in
+    *"$signing_identity"*) ;;
+    *) fail "signing identity is unavailable: $signing_identity" ;;
+esac
+
+if ! xcrun notarytool history \
+    --keychain-profile "$keychain_profile" \
+    --output-format json >/dev/null; then
+    fail "notarytool Keychain profile is unavailable or invalid: $keychain_profile"
+fi
+
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/qlomni-release.XXXXXX")
+submission_zip="$temporary_directory/QLOmni-submission.zip"
+submission_result="$temporary_directory/notary-result.plist"
+notary_log="$temporary_directory/notary-log.json"
+completed='false'
+
+cleanup() {
+    rm -rf "$temporary_directory"
+    if [ "$completed" = 'false' ]; then
+        rm -f "$output_path" "$checksum_path"
+    fi
+}
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
+
+printf 'Signing Quick Look extension\n' >&2
+codesign \
+    --force \
+    --sign "$signing_identity" \
+    --options runtime \
+    --timestamp \
+    --entitlements "$extension_entitlements" \
+    "$extension_path"
+
+printf 'Signing host application\n' >&2
+codesign \
+    --force \
+    --sign "$signing_identity" \
+    --options runtime \
+    --timestamp \
+    --entitlements "$app_entitlements" \
+    "$app_path"
+
+"$verify_script" \
+    --pre-notarization \
+    --team-id "$team_id" \
+    --expected-version "$expected_version" \
+    "$app_path" >&2
+
+printf 'Creating notarization submission\n' >&2
+ditto -c -k --sequesterRsrc --keepParent "$app_path" "$submission_zip"
+
+printf 'Submitting to Apple notary service\n' >&2
+if ! xcrun notarytool submit \
+    "$submission_zip" \
+    --keychain-profile "$keychain_profile" \
+    --wait \
+    --timeout "$NOTARY_TIMEOUT" \
+    --output-format plist >"$submission_result"; then
+    fail 'notarytool submission failed'
+fi
+
+submission_status=$(plutil -extract status raw -o - "$submission_result") || fail 'notarytool result is missing a status'
+submission_id=$(plutil -extract id raw -o - "$submission_result") || fail 'notarytool result is missing a submission ID'
+
+if ! xcrun notarytool log \
+    --keychain-profile "$keychain_profile" \
+    "$submission_id" \
+    "$notary_log" >/dev/null; then
+    printf 'package-release: warning: could not retrieve notary log for %s\n' "$submission_id" >&2
+fi
+
+if [ "$submission_status" != 'Accepted' ]; then
+    if [ -s "$notary_log" ]; then
+        printf '%s\n' '--- Apple notary log ---' >&2
+        cat "$notary_log" >&2
+    fi
+    fail "submission $submission_id finished with status $submission_status"
+fi
+
+if [ -s "$notary_log" ] && grep -Eq '"severity"[[:space:]]*:[[:space:]]*"(warning|error)"' "$notary_log"; then
+    printf 'Apple accepted the submission with reported issues:\n' >&2
+    cat "$notary_log" >&2
+fi
+
+printf 'Stapling notarization ticket\n' >&2
+xcrun stapler staple "$app_path"
+xcrun stapler validate "$app_path"
+
+printf 'Creating final release ZIP\n' >&2
+ditto -c -k --sequesterRsrc --keepParent "$app_path" "$output_path"
+
+"$verify_script" \
+    --team-id "$team_id" \
+    --expected-version "$expected_version" \
+    "$output_path" >&2
+
+(
+    cd "${output_path%/*}"
+    shasum -a 256 "${output_path##*/}" >"${checksum_path##*/}"
+)
+
+completed='true'
+printf 'Accepted submission: %s\n' "$submission_id"
+printf '%s\n' "$output_path"
+printf '%s\n' "$checksum_path"

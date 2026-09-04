@@ -1,0 +1,339 @@
+#!/bin/bash
+
+set -eu
+
+readonly EXIT_USAGE=2
+readonly EXIT_DEPENDENCY=3
+readonly APP_NAME='QLOmni.app'
+readonly APP_EXECUTABLE='QLOmni'
+readonly APP_BUNDLE_IDENTIFIER='dev.j-256.qlomni'
+readonly EXTENSION_NAME='QLOmniExtension.appex'
+readonly EXTENSION_EXECUTABLE='QLOmniExtension'
+readonly EXTENSION_BUNDLE_IDENTIFIER='dev.j-256.qlomni.QLOmniExtension'
+readonly DEPLOYMENT_TARGET='12.0'
+readonly PLIST_BUDDY='/usr/libexec/PlistBuddy'
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/verify-release [options] APP_OR_ZIP
+
+Verify a QLOmni application or release ZIP.
+
+Arguments:
+  APP_OR_ZIP                  QLOmni.app or a ZIP containing QLOmni.app
+
+Options:
+      --ad-hoc                Verify a secretless ad-hoc CI build
+      --pre-notarization      Skip staple and Gatekeeper checks
+  -t, --team-id TEAM_ID       Expected Developer Team ID
+  -V, --expected-version X.Y.Z Expected app and extension version
+  -h, --help                  Show this help
+
+Dependencies:
+  macOS with awk, codesign, lipo, mktemp, plutil, and vtool; ZIP input also
+  requires ditto; Developer ID verification requires PlistBuddy, and final
+  release verification also requires spctl and xcrun stapler
+
+Exit status:
+  0 success, 1 verification failure, 2 usage error, 3 missing dependency
+EOF
+}
+
+fail_usage() {
+    printf 'verify-release: %s\n' "$1" >&2
+    printf 'Try verify-release --help for usage.\n' >&2
+    exit "$EXIT_USAGE"
+}
+
+fail() {
+    printf 'verify-release: %s\n' "$1" >&2
+    exit 1
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        printf 'verify-release: required command not found: %s\n' "$1" >&2
+        exit "$EXIT_DEPENDENCY"
+    fi
+}
+
+_expand_short_opts() {
+    # $1 = string of short-opt letters that take a value (e.g. "nXHd"); "" for flag-only scripts
+    # $2..$N = "$@"
+    # Populates _EXPANDED; caller does: set -- "${_EXPANDED[@]}"; unset _EXPANDED
+    local value_opts="$1"; shift
+    _EXPANDED=()
+    local passthru=""
+    local arg
+    local rest
+    local c
+    for arg in "$@"; do
+        if [ -n "$passthru" ]; then _EXPANDED+=("$arg"); continue; fi
+        case "$arg" in
+            --)       passthru=1; _EXPANDED+=("$arg") ;;
+            --*|-|"") _EXPANDED+=("$arg") ;;
+            -[a-zA-Z]?*)
+                rest="${arg#-}"
+                while [ -n "$rest" ]; do
+                    c="${rest%"${rest#?}"}"; rest="${rest#?}"
+                    _EXPANDED+=("-$c")
+                    case "$value_opts" in *"$c"*)
+                        [ -n "$rest" ] && _EXPANDED+=("$rest")
+                        rest="" ;;
+                    esac
+                done ;;
+            *)        _EXPANDED+=("$arg") ;;
+        esac
+    done
+}
+
+read_plist_value() {
+    local key
+    local plist
+
+    key=$1
+    plist=$2
+    plutil -extract "$key" raw -o - "$plist" 2>/dev/null || return 1
+}
+
+read_entitlement_value() {
+    local key
+    local plist
+
+    key=$1
+    plist=$2
+    "$PLIST_BUDDY" -c "Print :$key" "$plist" 2>/dev/null || return 1
+}
+
+ad_hoc='false'
+pre_notarization='false'
+team_id=''
+expected_version=''
+input_path=''
+input_set='false'
+options_enabled='true'
+
+if [ "$#" -gt 0 ]; then
+    _expand_short_opts "tV" "$@"
+    set -- "${_EXPANDED[@]}"; unset _EXPANDED
+fi
+
+while [ "$#" -gt 0 ]; do
+    if [ "$options_enabled" = 'false' ]; then
+        [ "$input_set" = 'false' ] || fail_usage "unexpected argument: $1"
+        [ -n "$1" ] || fail_usage 'input path must not be empty'
+        input_path=$1
+        input_set='true'
+        shift
+        continue
+    fi
+
+    case "$1" in
+        --ad-hoc)
+            ad_hoc='true'
+            shift
+            ;;
+        --pre-notarization)
+            pre_notarization='true'
+            shift
+            ;;
+        -t|--team-id)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--team-id requires a value'
+            team_id=$2
+            shift 2
+            ;;
+        --team-id=*)
+            team_id=${1#*=}
+            [ -n "$team_id" ] || fail_usage '--team-id requires a value'
+            shift
+            ;;
+        -V|--expected-version)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail_usage '--expected-version requires a value'
+            expected_version=$2
+            shift 2
+            ;;
+        --expected-version=*)
+            expected_version=${1#*=}
+            [ -n "$expected_version" ] || fail_usage '--expected-version requires a value'
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            options_enabled='false'
+            shift
+            ;;
+        -*)
+            fail_usage "unknown option: $1"
+            ;;
+        *)
+            [ "$input_set" = 'false' ] || fail_usage "unexpected argument: $1"
+            [ -n "$1" ] || fail_usage 'input path must not be empty'
+            input_path=$1
+            input_set='true'
+            shift
+            ;;
+    esac
+done
+
+[ "$input_set" = 'true' ] || fail_usage 'APP_OR_ZIP is required'
+if [ "$ad_hoc" = 'true' ] && [ "$pre_notarization" = 'true' ]; then
+    fail_usage '--ad-hoc and --pre-notarization cannot be combined'
+fi
+if [ "$ad_hoc" = 'false' ]; then
+    [ -n "$team_id" ] || fail_usage '--team-id is required for Developer ID verification'
+fi
+
+for command_name in awk codesign lipo mktemp plutil vtool; do
+    require_command "$command_name"
+done
+
+if [ "$ad_hoc" = 'false' ] && [ ! -x "$PLIST_BUDDY" ]; then
+    printf 'verify-release: required command not found: %s\n' "$PLIST_BUDDY" >&2
+    exit "$EXIT_DEPENDENCY"
+fi
+
+[ -e "$input_path" ] || fail "input not found: $input_path"
+
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/qlomni-verify.XXXXXX")
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 130' HUP INT TERM
+
+case "$input_path" in
+    *.app)
+        app_path=$input_path
+        ;;
+    *.zip)
+        require_command ditto
+        ditto -x -k "$input_path" "$temporary_directory/unpacked"
+        app_path="$temporary_directory/unpacked/$APP_NAME"
+        ;;
+    *)
+        fail 'input must be QLOmni.app or a .zip file'
+        ;;
+esac
+
+extension_path="$app_path/Contents/PlugIns/$EXTENSION_NAME"
+app_info="$app_path/Contents/Info.plist"
+app_binary="$app_path/Contents/MacOS/$APP_EXECUTABLE"
+extension_info="$extension_path/Contents/Info.plist"
+extension_binary="$extension_path/Contents/MacOS/$EXTENSION_EXECUTABLE"
+
+for required_path in "$app_info" "$app_binary" "$extension_info" "$extension_binary"; do
+    [ -e "$required_path" ] || fail "required bundle item missing: $required_path"
+done
+
+plutil -lint "$app_info" "$extension_info" >/dev/null
+
+app_identifier=$(read_plist_value CFBundleIdentifier "$app_info") || fail 'app bundle identifier is missing'
+extension_identifier=$(read_plist_value CFBundleIdentifier "$extension_info") || fail 'extension bundle identifier is missing'
+app_version=$(read_plist_value CFBundleShortVersionString "$app_info") || fail 'app version is missing'
+extension_version=$(read_plist_value CFBundleShortVersionString "$extension_info") || fail 'extension version is missing'
+app_build=$(read_plist_value CFBundleVersion "$app_info") || fail 'app build number is missing'
+extension_build=$(read_plist_value CFBundleVersion "$extension_info") || fail 'extension build number is missing'
+app_minimum=$(read_plist_value LSMinimumSystemVersion "$app_info") || fail 'app deployment target is missing'
+extension_minimum=$(read_plist_value LSMinimumSystemVersion "$extension_info") || fail 'extension deployment target is missing'
+
+[ "$app_identifier" = "$APP_BUNDLE_IDENTIFIER" ] || fail "unexpected app bundle identifier: $app_identifier"
+[ "$extension_identifier" = "$EXTENSION_BUNDLE_IDENTIFIER" ] || fail "unexpected extension bundle identifier: $extension_identifier"
+[ "$app_version" = "$extension_version" ] || fail 'app and extension versions differ'
+[ -z "$expected_version" ] || [ "$app_version" = "$expected_version" ] || fail "app version is $app_version, expected $expected_version"
+[ "$app_build" = "$extension_build" ] || fail 'app and extension build numbers differ'
+[ "$app_minimum" = "$DEPLOYMENT_TARGET" ] || fail "unexpected app deployment target: $app_minimum"
+[ "$extension_minimum" = "$DEPLOYMENT_TARGET" ] || fail "unexpected extension deployment target: $extension_minimum"
+
+for binary_path in "$app_binary" "$extension_binary"; do
+    architectures=$(lipo -archs "$binary_path")
+    case " $architectures " in
+        *' arm64 '*) ;;
+        *) fail "arm64 slice missing: $binary_path" ;;
+    esac
+    case " $architectures " in
+        *' x86_64 '*) ;;
+        *) fail "x86_64 slice missing: $binary_path" ;;
+    esac
+
+    minimum_versions=$(vtool -show-build "$binary_path" | awk '$1 == "minos" { print $2 }')
+    [ -n "$minimum_versions" ] || fail "deployment target not found in binary: $binary_path"
+    while IFS= read -r minimum_version; do
+        [ "$minimum_version" = "$DEPLOYMENT_TARGET" ] || fail "binary deployment target is $minimum_version: $binary_path"
+    done <<EOF
+$minimum_versions
+EOF
+done
+
+codesign --verify --deep --strict --verbose=2 "$app_path"
+
+for bundle_path in "$extension_path" "$app_path"; do
+    signature_details=$(codesign -d --verbose=4 "$bundle_path" 2>&1)
+    if [ "$ad_hoc" = 'true' ]; then
+        case "$signature_details" in
+            *'Signature=adhoc'*) ;;
+            *) fail "ad-hoc signature missing: $bundle_path" ;;
+        esac
+        case "$signature_details" in
+            *'Authority=Developer ID Application:'*) fail "unexpected Developer ID signature in ad-hoc build: $bundle_path" ;;
+        esac
+        continue
+    fi
+    case "$signature_details" in
+        *'Authority=Developer ID Application:'*) ;;
+        *) fail "Developer ID authority missing: $bundle_path" ;;
+    esac
+    case "$signature_details" in
+        *"TeamIdentifier=$team_id"*) ;;
+        *) fail "unexpected signing team: $bundle_path" ;;
+    esac
+    case "$signature_details" in
+        *'flags='*'runtime'*) ;;
+        *) fail "hardened runtime missing: $bundle_path" ;;
+    esac
+    case "$signature_details" in
+        *'Timestamp='*) ;;
+        *) fail "secure timestamp missing: $bundle_path" ;;
+    esac
+done
+
+if [ "$ad_hoc" = 'true' ]; then
+    printf 'Verified %s\n' "$input_path"
+    printf 'Version: %s (%s)\n' "$app_version" "$app_build"
+    printf 'Architectures: arm64 x86_64\n'
+    printf 'Signing: ad-hoc\n'
+    exit 0
+fi
+
+app_entitlements="$temporary_directory/app-entitlements.plist"
+extension_entitlements="$temporary_directory/extension-entitlements.plist"
+codesign -d --entitlements "$app_entitlements" --xml "$app_path" 2>/dev/null
+codesign -d --entitlements "$extension_entitlements" --xml "$extension_path" 2>/dev/null
+
+for entitlements_path in "$app_entitlements" "$extension_entitlements"; do
+    entitlement_value=$(read_entitlement_value com.apple.security.app-sandbox "$entitlements_path") || fail "app sandbox entitlement is missing: $entitlements_path"
+    [ "$entitlement_value" = 'true' ] || fail "app sandbox entitlement is not true: $entitlements_path"
+
+    for forbidden_entitlement in \
+        com.apple.security.get-task-allow \
+        com.apple.security.network.client \
+        com.apple.security.network.server; do
+        if read_entitlement_value "$forbidden_entitlement" "$entitlements_path" >/dev/null; then
+            fail "forbidden entitlement is present: $forbidden_entitlement"
+        fi
+    done
+done
+
+entitlement_value=$(read_entitlement_value com.apple.security.files.user-selected.read-only "$extension_entitlements") || fail 'extension read-only file entitlement is missing'
+[ "$entitlement_value" = 'true' ] || fail 'extension read-only file entitlement is not true'
+
+if [ "$pre_notarization" = 'false' ]; then
+    require_command spctl
+    require_command xcrun
+    xcrun stapler validate "$app_path"
+    spctl --assess --type execute --verbose=4 "$app_path"
+fi
+
+printf 'Verified %s\n' "$input_path"
+printf 'Version: %s (%s)\n' "$app_version" "$app_build"
+printf 'Architectures: arm64 x86_64\n'
+printf 'Signing team: %s\n' "$team_id"
