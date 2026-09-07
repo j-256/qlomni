@@ -275,6 +275,26 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.gap-source</string>
+			<key>UTTypeDescription</key>
+			<string>GAP source</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>g</string>
+					<string>gd</string>
+					<string>gi</string>
+					<string>tst</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.kotlin</string>
 			<key>UTTypeDescription</key>
 			<string>Kotlin source</string>
