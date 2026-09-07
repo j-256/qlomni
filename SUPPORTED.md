@@ -26,6 +26,9 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.example` | Environment-variant config (.example) |
 | `.feature` | Gherkin / Cucumber feature |
 | `.fish` | Fish shell script |
+| `.g` | GAP source |
+| `.gd` | GAP source |
+| `.gi` | GAP source |
 | `.go` | Go source |
 | `.gql` | GraphQL source file |
 | `.graphql` | GraphQL source file |
@@ -74,6 +77,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.tfvars` | Terraform configuration |
 | `.toml` | TOML configuration |
 | `.ts` [^ts] | TypeScript source |
+| `.tst` | GAP source |
 | `.tsx` | TypeScript source |
 | `.vim` | Vim script |
 | `.vue` | Vue single-file component |

@@ -136,6 +136,10 @@ assert_strict sample.css             public.css
 assert_strict sample.dropboxignore   com.getdropbox.dropbox.dropboxignore
 assert_strict sample.rs              user.rust
 assert_strict sample.go              user.go-source
+assert_strict sample.g               user.gap-source
+assert_strict sample.gd              user.gap-source
+assert_strict sample.gi              user.gap-source
+assert_strict sample.tst             user.gap-source
 assert_strict sample.kt              user.kotlin
 assert_strict sample.kts             user.kotlin
 assert_strict sample.cs              user.csharp
