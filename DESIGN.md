@@ -230,7 +230,9 @@ Modern Preview Extensions run inside a sandboxed XPC service. We verified the fo
 - `Process()` shelling out to `/usr/bin/file` (or anything else) is silently blocked. The subprocess never runs.
 - Reading the file in chunks via `FileHandle(forReadingFrom:)` works.
 
-Originally we planned to mirror QLStephen's `file --mime` content sniff for binary detection. We can't shell out, but in-process byte sniffing works (we read the prefix via `FileHandle` and look for a NUL – the same heuristic `git diff` uses). `PreviewRenderer` does this and throws on binary content, which makes QuickLook fall through to the no-preview placeholder rather than rendering garbage. The text-shaped UTIs we claim normally won't be binary, but `public.unix-executable` covers Mach-O binaries too, and pressing space on one of those should fail gracefully rather than dumping bytes.
+Originally we planned to mirror QLStephen's `file --mime` content sniff for binary detection. We can't shell out, but in-process byte sniffing works. `PreviewRenderer` rejects a NUL byte or a high proportion of unexpected control bytes in the sampled prefix, while allowing the escape byte required by ISO-2022-JP. A Unicode BOM is checked first because UTF-16 and UTF-32 text naturally contains NUL bytes. Rejected content makes QuickLook fall through to the no-preview placeholder rather than rendering garbage. The text-shaped UTIs we claim normally won't be binary, but `public.unix-executable` covers Mach-O binaries too, and pressing space on one of those should fail gracefully rather than dumping bytes.
+
+Encoding detection uses a confidence-first order: UTF-8, UTF-16, and UTF-32 BOMs; ISO-2022-JP escape sequences; strict UTF-8; Foundation's non-lossy statistical detector; then non-lossy fallbacks for EUC-JP, Shift JIS, EUC-KR, GB18030, Big5, GB2312, Windows-1252, and MacRoman. BOM-tagged content must decode in its declared encoding and never falls through to a heuristic. The decoded string is normalized to valid UTF-8 before it reaches QuickLook, and truncation backs up to a complete UTF-8 code point so the size cap cannot introduce a malformed sequence.
 
 ## UTI identifier choice
 
