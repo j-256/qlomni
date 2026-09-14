@@ -333,12 +333,20 @@ for forbidden_pattern in \
     'SIGNING_IDENTITY' \
     'notarytool' \
     'Developer ID' \
-    'gh release' \
-    'contents: write'; do
+    'gh release'; do
     if grep -Fq -- "$forbidden_pattern" "$workflow_path"; then
         fail "CI contains forbidden release credential or publication pattern: $forbidden_pattern"
     fi
 done
+awk '
+    /^  [a-zA-Z0-9_-]+:/ { cover_job = ($0 == "  publish-cover:") }
+    !cover_job { print }
+' "$workflow_path" >"$test_directory/read-only-jobs.yml"
+if grep -Fq 'contents: write' "$test_directory/read-only-jobs.yml"; then
+    fail 'only the cover publisher may write repository contents'
+fi
+grep -Fq 'git add -- docs/screenshots/cover.png' "$workflow_path" || fail 'cover publisher does not stage only the canonical cover'
+grep -Fq "git commit -m 'docs: refresh generated project cover' -- docs/screenshots/cover.png" "$workflow_path" || fail 'cover publisher does not scope its commit to the canonical cover'
 grep -Fq 'contents: read' "$workflow_path" || fail 'CI does not declare read-only contents permission'
 grep -Fq -- '--ad-hoc' "$workflow_path" || fail 'CI does not verify ad-hoc signatures'
 grep -Fq 'qlomni-adhoc-dry-run' "$workflow_path" || fail 'CI artifact is not clearly labeled as an ad-hoc dry run'

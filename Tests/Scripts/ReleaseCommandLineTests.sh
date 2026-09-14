@@ -425,7 +425,7 @@ run_command env \
 assert_status "$EXPECTED_USAGE"
 assert_stderr_contains 'output already exists'
 
-if rg -n 'APPLE_|--apple-id|--password' "$repository_root/scripts/package-release" "$repository_root/scripts/release" >/dev/null; then
+if grep -En 'APPLE_|--apple-id|--password' "$repository_root/scripts/package-release" "$repository_root/scripts/release" >/dev/null; then
     fail 'release scripts contain forbidden ordinary Apple credential plumbing'
 fi
 
