@@ -62,6 +62,15 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app
       - name: Run tests
         run: make test
+      - name: Capture native project preview
+        run: make capture-cover
+      - name: Retain generated project cover
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: project-cover
+          path: docs/screenshots/cover.png
+          if-no-files-found: error
+          retention-days: 7
 
   package-dry-run:
     needs: [plan, test]
@@ -99,3 +108,38 @@ jobs:
             ${{ steps.package.outputs.zip_name }}.sha256
           if-no-files-found: error
           retention-days: 14
+
+  publish-cover:
+    name: Publish project cover
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    needs: [test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: project-cover
+          path: ${{ runner.temp }}/project-cover
+      - name: Commit changed cover from this build
+        env:
+          COVER_ARTIFACT: ${{ runner.temp }}/project-cover/cover.png
+        run: |
+          set -eu
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "A newer source commit superseded this cover; its build owns publication."
+            exit 0
+          fi
+          cp "$COVER_ARTIFACT" docs/screenshots/cover.png
+          if git diff --quiet -- docs/screenshots/cover.png; then
+            echo "Project cover is unchanged."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/screenshots/cover.png
+          git commit -m 'docs: refresh generated project cover' -- docs/screenshots/cover.png
+          git push origin HEAD:main

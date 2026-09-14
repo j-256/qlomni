@@ -289,3 +289,7 @@ check-release-integration:
 # (informational). Local-only -- depends on the LS state of the machine.
 audit-collisions:
 	./tools/audit-collisions.sh
+
+.PHONY: capture-cover
+capture-cover:
+	./scripts/capture-cover $(ARGS)

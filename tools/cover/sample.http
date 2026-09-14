@@ -1,0 +1,20 @@
+### List products
+GET https://api.example.com/products?limit=20
+Accept: application/json
+
+### Create an order
+POST https://api.example.com/orders
+Content-Type: application/json
+
+{
+  "items": [
+    { "sku": "EXAMPLE-001", "quantity": 2 }
+  ],
+  "shipping": {
+    "method": "standard"
+  }
+}
+
+### Read order status
+GET https://api.example.com/orders/example-order
+Accept: application/json

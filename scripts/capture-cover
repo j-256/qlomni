@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/capture-cover [--output FILE]
+
+Capture the project renderer's output in the native macOS Quick Look view.
+Requires macOS and Xcode command line tools. No application install is needed.
+Default output: docs/screenshots/cover.png
+Exit status: 0 success, 1 capture failure, 2 usage, 3 missing dependency.
+EOF
+}
+
+cover_output=''
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help) usage; exit 0 ;;
+        --output)
+            if [ "$#" -lt 2 ] || [ -z "$2" ]; then usage >&2; exit 2; fi
+            cover_output="$2"; shift 2 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+if [ "$(uname -s)" != Darwin ] || ! command -v xcrun >/dev/null 2>&1; then
+    echo 'capture-cover: requires macOS and Xcode command line tools' >&2
+    exit 3
+fi
+capture_root="$(cd "$(dirname "$0")/.." && pwd)"
+cover_output="${cover_output:-$capture_root/docs/screenshots/cover.png}"
+capture_scratch="$(mktemp -d "${TMPDIR:-/tmp}/qlomni-cover.XXXXXX")"
+trap 'rm -rf "$capture_scratch"' EXIT
+xcrun swiftc "$capture_root/QLOmniExtension/PreviewRenderer.swift" "$capture_root/tools/cover/Capture.swift" -framework AppKit -framework Quartz -o "$capture_scratch/capture"
+"$capture_scratch/capture" "$capture_root/tools/cover/sample.http" "$capture_scratch" "$cover_output"
