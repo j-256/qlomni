@@ -1,0 +1,3 @@
+{% set greeting = "Hello" %}
+<p>{{ greeting }}, {{ user.name | default("world") }}!</p>
+{% if user.admin %}<span class="badge">admin</span>{% endif %}

@@ -1,0 +1,11 @@
+{% extends "base.njk" %}
+
+{% block content %}
+<ul>
+{% for item in items %}
+  <li>{{ item.name | title }} - {{ item.price | float }}</li>
+{% else %}
+  <li>No items yet</li>
+{% endfor %}
+</ul>
+{% endblock %}

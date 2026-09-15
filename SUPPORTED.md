@@ -54,6 +54,8 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.markdown` | Markdown |
 | `.md` | Markdown |
 | `.ndjson` | JSON Lines |
+| `.njk` | Nunjucks template |
+| `.nunjucks` | Nunjucks template |
 | `.out` | Standard output capture |
 | `.output` | Command output capture |
 | `.prod` | Environment-variant config (.prod) |

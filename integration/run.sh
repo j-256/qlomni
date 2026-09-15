@@ -166,6 +166,8 @@ assert_strict sample.feature         user.gherkin
 assert_strict sample.hbs             user.handlebars
 assert_strict sample.handlebars      user.handlebars
 assert_strict sample.isml            user.isml
+assert_strict sample.njk             user.nunjucks
+assert_strict sample.nunjucks        user.nunjucks
 assert_strict sample.cjs             user.cjs
 assert_strict sample.awk             user.awk
 assert_strict sample.sed             user.sed
