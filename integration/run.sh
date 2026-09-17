@@ -193,6 +193,47 @@ assert_strict sample.prod            user.prod
 assert_strict sample.staging         user.staging
 assert_strict sample.test            user.test
 
+
+# Config / project / language extensions added so Code can be set as default
+# (see DESIGN.md "A static UTI is useful beyond preview").
+assert_strict sample.gemspec         user.gemspec
+assert_strict sample.ipynb           user.ipynb
+assert_strict sample.csproj          user.msbuild-project
+assert_strict sample.cshtml          user.razor
+assert_strict sample.erb             user.erb
+assert_strict sample.pug             user.pug
+assert_strict sample.jade            user.pug
+assert_strict sample.rst             user.restructuredtext
+assert_strict sample.ml              user.ocaml
+assert_strict sample.mli             user.ocaml
+assert_strict sample.fsx             user.fsharp-script
+assert_strict sample.fsi             user.fsharp-script
+assert_strict sample.cmake           user.cmake
+assert_strict sample.gradle          user.gradle
+assert_strict sample.xaml            user.xaml
+assert_strict sample.vb              user.visual-basic
+assert_strict sample.dtd             user.dtd
+assert_strict sample.asm             user.assembly
+assert_strict sample.psd1            user.powershell-data
+assert_strict sample.csx             user.csharp-script
+assert_strict sample.pyi             user.python-stub
+assert_strict sample.lock            user.lockfile
+assert_strict sample.jsp             user.jsp
+assert_strict sample.asp             user.aspnet
+assert_strict sample.aspx            user.aspnet
+assert_strict sample.ascx            user.aspnet
+assert_strict sample.clojure         user.clojure
+assert_strict sample.cljx            user.clojure
+assert_strict sample.cmd             user.windows-batch
+assert_strict sample.utf8            user.utf8
+assert_strict sample.mdown           user.markdown
+assert_strict sample.mdtext          user.markdown
+assert_strict sample.mdtxt           user.markdown
+assert_strict sample.mdwn            user.markdown
+assert_strict sample.mkd             user.markdown
+assert_strict sample.mkdn            user.markdown
+assert_strict sample.mdoc            user.markdown
+
 # Lenient: extensions where another app may reasonably also claim them. We
 # accept losing to a real (non-dyn.*) UTI -- the design is that we act as a
 # backup for users who don't have the competing app installed. Each line
