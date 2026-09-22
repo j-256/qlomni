@@ -26,9 +26,17 @@ struct CoverCapture {
         defer { preview.close(); window.orderOut(nil) }
         RunLoop.current.run(until: Date().addingTimeInterval(8))
         let frame = window.contentView!.superview!
-        guard let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else {
+        let scale = 4
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(frame.bounds.width) * scale,
+            pixelsHigh: Int(frame.bounds.height) * scale,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else {
             throw CocoaError(.fileWriteUnknown)
         }
+        bitmap.size = frame.bounds.size
         frame.cacheDisplay(in: frame.bounds, to: bitmap)
         guard let png = bitmap.representation(using: .png, properties: [:]), png.count > 10_000 else {
             throw CocoaError(.fileWriteUnknown)
