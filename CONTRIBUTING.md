@@ -92,6 +92,7 @@ CI remains secretless:
 - Pushes and pull requests run `make test`.
 - Version tags also build and verify a universal ad-hoc app, then upload a clearly named `qlomni-adhoc-dry-run` workflow artifact.
 - Manual `test` and `dry-run` modes provide the same checks without Apple credentials.
+- `verify` runs tests against the selected ref without generating, publishing, or packaging another cover. Successful cover publication dispatches this mode on `main` so the generated commit receives CI results. If dispatch fails after publication, rerun it with `gh workflow run ci.yml --ref main -f mode=verify`.
 
 The ad-hoc workflow artifact is diagnostic only. It is not Developer ID signed, notarized, stapled, or attached to a GitHub Release.
 

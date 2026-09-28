@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'test or dry-run (ad-hoc package, never an official release)'
+        description: 'test, verify (no cover publication), or dry-run (ad-hoc package)'
         type: choice
-        options: [test, dry-run]
+        options: [test, verify, dry-run]
         default: test
 
 permissions:
@@ -49,6 +49,10 @@ jobs:
             esac
           fi
 
+          if [ "$EVENT" = 'workflow_dispatch' ] && [ "$MODE" = 'verify' ]; then
+            run_package=false
+          fi
+
           {
             echo "run_package=$run_package"
             echo "version=$version"
@@ -63,8 +67,10 @@ jobs:
       - name: Run tests
         run: make test
       - name: Capture native project preview
+        if: inputs.mode != 'verify'
         run: make capture-cover
       - name: Retain generated project cover
+        if: inputs.mode != 'verify'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: project-cover
@@ -111,12 +117,13 @@ jobs:
 
   publish-cover:
     name: Publish project cover
-    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.mode != 'verify' }}
     needs: [test]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -126,6 +133,7 @@ jobs:
       - name: Commit changed cover from this build
         env:
           COVER_ARTIFACT: ${{ runner.temp }}/project-cover/cover.png
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           git fetch origin main
@@ -143,3 +151,4 @@ jobs:
           git add -- docs/screenshots/cover.png
           git commit -m 'docs: refresh generated project cover' -- docs/screenshots/cover.png
           git push origin HEAD:main
+          gh workflow run ci.yml --ref main -f mode=verify
