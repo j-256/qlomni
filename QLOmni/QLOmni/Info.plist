@@ -460,6 +460,25 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>user.webmanifest</string>
+			<key>UTTypeDescription</key>
+			<string>Web app manifest</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>webmanifest</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/manifest+json</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>user.vscode-workspace</string>
 			<key>UTTypeDescription</key>
 			<string>VSCode workspace</string>

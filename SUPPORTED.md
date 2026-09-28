@@ -119,6 +119,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.vb` | Visual Basic source |
 | `.vim` | Vim script |
 | `.vue` | Vue single-file component |
+| `.webmanifest` | Web app manifest |
 | `.wsdl` | WSDL (Web Services Description Language) |
 | `.xaml` | XAML |
 | `.yaml` | YAML configuration |
