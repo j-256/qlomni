@@ -33,6 +33,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.dropboxignore` | Dropbox ignore rules |
 | `.dtd` | XML document type definition |
 | `.editorconfig` | EditorConfig file |
+| `.env` | Dotenv configuration |
 | `.erb` | Embedded Ruby template |
 | `.err` | Standard error capture |
 | `.ex` | Elixir source |
@@ -66,6 +67,7 @@ Generated from `QLOmni/QLOmni/Info.plist` and `QLOmniExtension/Info.plist`. Do n
 | `.jsonl` | JSON Lines |
 | `.jsp` | JavaServer Pages |
 | `.jsx` | React JavaScript |
+| `.jwt` | JSON Web Token |
 | `.kt` | Kotlin source |
 | `.kts` | Kotlin source |
 | `.less` | Less stylesheet |

@@ -114,6 +114,8 @@ assert_lenient() {
 # QLOmni's declaration must win exactly, otherwise something is broken.
 assert_strict sample.jsonc           user.jsonc
 assert_strict sample.jsonl           user.jsonl
+assert_strict sample.env             user.env
+assert_strict sample.jwt             user.jwt
 assert_strict sample.webmanifest     user.webmanifest
 assert_strict sample.code-workspace  user.vscode-workspace
 assert_strict sample.har             user.har
@@ -133,6 +135,7 @@ assert_strict sample.ndjson          public.ndjson
 assert_strict extensionless          public.unix-executable
 assert_strict extensionless-nonexec  public.data
 assert_strict .bashrc                public.data
+assert_strict .env                   public.data
 assert_strict sample.css             public.css
 assert_strict sample.dropboxignore   com.getdropbox.dropbox.dropboxignore
 assert_strict sample.rs              user.rust
