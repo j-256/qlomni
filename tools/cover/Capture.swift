@@ -3,6 +3,8 @@ import Quartz
 
 @main
 struct CoverCapture {
+    private static let previewSize = NSSize(width: 400, height: 300)
+
     static func main() throws {
         let arguments = CommandLine.arguments
         guard arguments.count == 4 else { exit(2) }
@@ -16,7 +18,7 @@ struct CoverCapture {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.appearance = NSAppearance(named: .darkAqua)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 660), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: previewSize), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = source.lastPathComponent
         window.appearance = NSAppearance(named: .darkAqua)
         let preview = QLPreviewView(frame: window.contentView!.bounds, style: .normal)!

@@ -177,10 +177,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run tests, exercise the local 
 
 Run `make capture-cover` on macOS with Xcode command line tools to regenerate `docs/screenshots/cover.png`, or `make capture-cover ARGS="--output /tmp/qlomni-cover.png"` for a review image. The capture feeds the actual `PreviewRenderer` output into the system Quick Look view with a synthetic HTTP fixture. It does not install the app or change Quick Look registration. This exercises the renderer and native preview presentation; UTI routing still belongs to the integration tests. CI captures after `make test` and publishes a changed cover from successful main builds, skipping superseded revisions. Pull requests retain capture artifacts without publishing. A cover update uses the repository workflow token to dispatch a `verify` run on the resulting default-branch head; ordinary pushes with that token do not start another workflow. Verification cannot publish another cover, preventing a loop. The cover job alone requires `actions: write` in addition to its existing content-write permission; no personal token is required.
 
-## Cover image density
-
-The project cover is rendered at 4x pixel density while preserving its logical viewport, so enlarged previews retain more detail. Higher density does not increase the displayed text size; use zoom to inspect small labels.
-
 ## License
 
 MIT – see [LICENSE](LICENSE).
